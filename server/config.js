@@ -13,6 +13,12 @@ if (fs.existsSync(ENV_FILE)) {
   process.loadEnvFile(ENV_FILE); // does not override variables already set
 }
 
+function parseTrustProxy(v) {
+  if (/^(false|0|off|no)$/i.test(v)) return false;
+  if (/^\d+$/.test(v)) return Number(v);
+  return v;
+}
+
 function required(name) {
   const v = process.env[name];
   if (!v) {
@@ -40,10 +46,18 @@ module.exports = {
     password: process.env.DB_MIGRATE_PASSWORD || '',
   },
   port: Number(process.env.PORT || 3000),
+  // Interface to listen on. Use 127.0.0.1 behind a reverse proxy on the same machine.
+  host: process.env.HOST || '0.0.0.0',
+  // Which proxies may set X-Forwarded-For (used for per-IP rate limiting). The default
+  // trusts only a proxy on this machine (Caddy, nginx, cloudflared), so clients connecting
+  // directly can't spoof their IP. Accepts Express values: loopback, a hop count, CIDRs, false.
+  trustProxy: parseTrustProxy(process.env.TRUST_PROXY ?? 'loopback'),
   // Other sites allowed to call the API (e.g. the GitHub Pages front end through a tunnel).
   // They authenticate with a bearer token, never the cookie.
   allowedOrigins: (process.env.ALLOWED_ORIGINS ?? 'https://shubin123.github.io')
     .split(',').map(s => s.trim()).filter(Boolean),
   production: process.env.NODE_ENV === 'production',
+  // Secure cookies need HTTPS; defaults to on in production. COOKIE_SECURE=false only for plain-HTTP testing.
+  cookieSecure: process.env.COOKIE_SECURE ? process.env.COOKIE_SECURE === 'true' : process.env.NODE_ENV === 'production',
   sessionDays: Number(process.env.SESSION_TTL_DAYS || 30),
 };

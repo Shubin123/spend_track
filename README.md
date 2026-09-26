@@ -62,6 +62,37 @@ Use `SPEND_TRACK_ENV_FILE=/path/to/.env` to keep the config elsewhere. Real envi
 - To rotate the app and migrator passwords: `DB_ADMIN_USER=admin DB_ADMIN_PASSWORD=… node scripts/create-db-users.js`. To keep the password out of shell history, read it from the Keychain: `DB_ADMIN_PASSWORD="$(security find-generic-password -s 'Spend Track RDS master (…)' -w)"`.
 - If the master credential is ever committed or shared, rotate it in AWS (RDS → Modify → master password), then rotate the app users as above.
 
+## Deploying to an Ubuntu server
+
+One command sets up Ubuntu 22.04+ or Debian 12+. It installs Node 22, a hardened systemd service, least-privilege DB users, and (with `DOMAIN`) Caddy with automatic HTTPS:
+
+```sh
+git clone https://github.com/Shubin123/spend_track.git && cd spend_track
+sudo DB_HOST=your-db.rds.amazonaws.com DB_USER=admin DB_PASSWORD=… \
+     DOMAIN=api.example.com bash scripts/install-ubuntu.sh
+```
+
+Before running it:
+- Point the domain's DNS at the server.
+- Open ports 80 and 443.
+- Allow the server's IP in the RDS security group.
+
+For a MySQL on the same machine or a private network, use `DB_HOST=127.0.0.1 DB_SSL=off`. Without `DOMAIN` the app serves plain HTTP on `PORT`, which is for testing only.
+
+| What | Where |
+| --- | --- |
+| Code | `/opt/spend_track`, owned by root and read-only to the app |
+| Config | `/etc/spend_track/.env`, mode 600, owned by the `spendtrack` user. It holds the restricted DB logins, never the admin password. |
+| Service | `systemctl status spend-track`, logs with `journalctl -u spend-track -f`. Runs migrations before each start, restarts on crash, shuts down gracefully, and is sandboxed (`ProtectSystem=strict`, no capabilities, and more). |
+| Health | `GET /api/health` returns `{"status":"ok","db":"up"}`, or 503 when the DB is unreachable. Use it for uptime monitoring. |
+| HTTPS | Caddy (`/etc/caddy/Caddyfile`) proxies to the app on `127.0.0.1`. The app trusts `X-Forwarded-For` only from loopback. |
+
+**Update:** `git pull && sudo bash scripts/install-ubuntu.sh`. It keeps the config and HTTPS, redeploys the code, migrates, and restarts.
+
+**Point the Pages site at the server:** run `npm run pages:api -- https://api.example.com --publish` on your dev machine. That replaces the tunnel.
+
+CI runs this installer on a clean Ubuntu 24.04 machine with real systemd on every push. It checks the plain-HTTP install, the file permissions and sandboxing, a smoke test, restart after a crash, and an in-place update to HTTPS behind Caddy.
+
 ## Connecting GitHub Pages
 
 GitHub Pages only hosts static files, so the Pages site reaches the API through a [Cloudflare quick tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/do-more-with-tunnels/trycloudflare/) running on this machine:
@@ -114,6 +145,8 @@ Smoke options: `npm run smoke -- <url>` for any server. Set `SMOKE_EMAIL`/`SMOKE
 | `npm start` | Start the server on `PORT` (default 3000) |
 | `npm run dev` | Start with auto-reload |
 | `npm run tunnel [-- --publish]` | Expose the local API to the Pages site via a Cloudflare quick tunnel |
+| `npm run pages:api -- <https-url> [--publish]` | Point the Pages site at an API (checks `/api/health` first) |
+| `sudo bash scripts/install-ubuntu.sh` | Install or update on an Ubuntu/Debian server (see above) |
 | `npm run migrate` | Apply pending migrations (as `DB_MIGRATE_USER` when set) |
 | `DB_ADMIN_USER=… DB_ADMIN_PASSWORD=… node scripts/create-db-users.js` | Create or rotate the least-privilege DB users and update the config file |
 | `ST_EMAIL=… ST_PASSWORD=… node scripts/create-user.js` | Create an account or reset its password |
@@ -126,7 +159,9 @@ api-config.js                    API URL for the Pages copy (written by scripts/
 seed.js                          Categories + sample data, shared by browser and server
 server/                          Express app: config, db pool, auth, data API
 migrations/                      Versioned SQL schema
-scripts/                         setup.sh, doctor.js, migrate.js, create-user.js, create-db-users.js, tunnel.sh, smoke.js
+scripts/                         setup.sh, install-ubuntu.sh, doctor.js, migrate.js, create-user.js, create-db-users.js,
+                                 tunnel.sh, pages-api.sh, smoke.js
+deploy/                          systemd unit and Caddyfile template used by install-ubuntu.sh
 test/                            API integration tests (node:test)
 e2e/                             Playwright browser tests
 ```

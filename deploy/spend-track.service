@@ -1,0 +1,46 @@
+# systemd unit for Spend Track. Installed by scripts/install-ubuntu.sh.
+[Unit]
+Description=Spend Track API and web app
+Documentation=https://github.com/Shubin123/spend_track
+After=network-online.target mysql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=spendtrack
+Group=spendtrack
+WorkingDirectory=/opt/spend_track
+Environment=NODE_ENV=production
+Environment=SPEND_TRACK_ENV_FILE=/etc/spend_track/.env
+# Apply any pending migrations (as the migrator user) before each start.
+ExecStartPre=/usr/bin/node scripts/migrate.js
+ExecStart=/usr/bin/node server/index.js
+Restart=on-failure
+RestartSec=3
+# Graceful shutdown: the server drains requests on SIGTERM, force-exits after 10 s.
+KillSignal=SIGTERM
+TimeoutStopSec=15
+
+# Hardening: the app only needs to read its code and config and talk to the network.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+SystemCallArchitectures=native
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

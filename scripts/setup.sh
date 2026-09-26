@@ -87,9 +87,13 @@ else
 fi
 
 bold "4. Installing dependencies"
-if [[ -f package-lock.json ]]; then npm ci --no-audit --no-fund --loglevel=error
-else npm install --no-audit --no-fund --loglevel=error; fi || die "npm install failed. If npm mentions root-owned files, run: sudo chown -R \$(id -u):\$(id -g) ~/.npm"
+if [[ -n "${ST_SKIP_INSTALL:-}" ]]; then ok "skipped (ST_SKIP_INSTALL set; installed by the caller)"; else
+NPM_FLAGS=(--no-audit --no-fund --loglevel=error)
+[[ "${NODE_ENV:-}" == production ]] && NPM_FLAGS+=(--omit=dev)   # servers don't need the test tooling
+if [[ -f package-lock.json ]]; then npm ci "${NPM_FLAGS[@]}"
+else npm install "${NPM_FLAGS[@]}"; fi || die "npm install failed. If npm mentions root-owned files, run: sudo chown -R \$(id -u):\$(id -g) ~/.npm"
 ok "dependencies installed"
+fi
 
 bold "5. Connecting and migrating"
 node scripts/migrate.js || die "Migration failed. Check host, password, and that your IP is allowed by the RDS security group."

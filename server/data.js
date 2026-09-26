@@ -55,6 +55,10 @@ async function getBudgets(conn, userId) {
 
 const router = express.Router();
 
+// Transaction ids are BIGINT UNSIGNED. Reject anything else before it reaches SQL: in
+// strict sql_mode (MySQL 8 default) comparing id to a non-number is an error, not a miss.
+router.param('id', (_req, _res, next, id) => next(/^[1-9]\d{0,18}$/.test(id) ? undefined : new HttpError(404, 'This transaction no longer exists.')));
+
 router.get('/data', async (req, res) => {
   const pool = getPool();
   const [txs] = await pool.query(`SELECT ${TX_COLS} FROM transactions WHERE user_id = ? ORDER BY tx_date DESC, id DESC`, [req.user.id]);

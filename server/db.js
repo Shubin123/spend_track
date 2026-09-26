@@ -27,9 +27,17 @@ function connectionOptions({ withDatabase = true, multipleStatements = false, us
   };
 }
 
+const SQL_MODE = 'STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION';
+
 let pool;
 function getPool() {
-  if (!pool) pool = mysql.createPool({ ...connectionOptions(), connectionLimit: 10, waitForConnections: true });
+  // Keep-alive detects connections silently dropped by NAT/firewalls between app and DB.
+  if (!pool) {
+    pool = mysql.createPool({ ...connectionOptions(), connectionLimit: 10, waitForConnections: true, enableKeepAlive: true, connectTimeout: 10000 });
+    // Same SQL semantics on every server: RDS defaults to a lenient sql_mode, stock MySQL
+    // to strict. Pin strict so bad data is an error everywhere, never silently truncated.
+    pool.pool.on('connection', conn => conn.query(`SET SESSION sql_mode = '${SQL_MODE}'`));
+  }
   return pool;
 }
 

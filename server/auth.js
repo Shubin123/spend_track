@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const { getPool, withTransaction } = require('./db');
-const { production, sessionDays } = require('./config');
+const { cookieSecure, sessionDays } = require('./config');
 const { insertSampleData, insertDefaultBudgets } = require('./data');
 
 const COOKIE = 'st_session';
@@ -37,7 +37,7 @@ async function createSession(conn, userId) {
 }
 
 const setSessionCookie = (res, token) =>
-  res.cookie(COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: production, path: '/', maxAge: SESSION_MS });
+  res.cookie(COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: cookieSecure, path: '/', maxAge: SESSION_MS });
 
 // Same-origin requests use the HttpOnly cookie. Allowlisted cross-origin requests use
 // "Authorization: Bearer <token>" only; browsers never attach that header on their own.

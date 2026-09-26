@@ -30,7 +30,7 @@ jobs:
       - name: Syntax check
         run: for f in app.js seed.js api-config.js playwright.config.js server/*.js scripts/*.js test/*.js test/support/*.js e2e/*.js e2e/support/*.js; do node --check "$f"; done
       - name: Shell script lint
-        run: for f in scripts/*.sh; do bash -n "$f"; done
+        run: shellcheck -S warning scripts/*.sh
       - name: No env files committed
         run: |
           if git ls-files | grep -E '(^|/)\.env($|\.)' | grep -v '\.env\.example$'; then
@@ -83,3 +83,54 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  # Proves the server install is portable: a clean Ubuntu machine with real systemd,
+  # installed with scripts/install-ubuntu.sh, then updated in place to HTTPS behind Caddy.
+  ubuntu-install:
+    runs-on: ubuntu-24.04
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci-root-password
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-root-password"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install (plain HTTP)
+        run: >-
+          sudo DB_HOST=127.0.0.1 DB_USER=root DB_PASSWORD=ci-root-password DB_SSL=off
+          ST_EMAIL=demo@example.test ST_PASSWORD=ci-demo-password
+          bash scripts/install-ubuntu.sh
+      - name: Service, config, and hardening
+        run: |
+          set -x
+          systemctl is-active spend-track
+          systemctl is-enabled spend-track
+          curl -fsS http://127.0.0.1:3000/api/health
+          test "$(sudo stat -c '%a %U' /etc/spend_track/.env)" = "600 spendtrack"
+          ! sudo grep -q ci-root-password /etc/spend_track/.env   # admin password is not kept
+          ! sudo -u spendtrack touch /opt/spend_track/probe        # app cannot modify its code
+          ! sudo -u spendtrack cat /etc/shadow
+          systemd-analyze security spend-track --no-pager | tail -1
+      - run: npm ci
+      - name: Smoke test (HTTP)
+        run: sudo SPEND_TRACK_ENV_FILE=/etc/spend_track/.env /usr/bin/node scripts/smoke.js http://127.0.0.1:3000
+      - name: Restarts after a crash
+        run: |
+          sudo kill -9 "$(systemctl show -p MainPID --value spend-track)"
+          for i in $(seq 40); do sleep 0.5; curl -fs -o /dev/null http://127.0.0.1:3000/api/health && exit 0; done
+          exit 1
+      - name: Update in place with HTTPS (Caddy, DOMAIN=localhost uses Caddy's internal CA)
+        run: sudo DOMAIN=localhost bash scripts/install-ubuntu.sh
+      - name: HTTPS works and the app is no longer exposed directly
+        run: |
+          set -x
+          curl -fsSk https://localhost/api/health
+          ! curl -fsS --max-time 3 "http://$(hostname -I | awk '{print $1}'):3000/api/health"
+          sudo NODE_TLS_REJECT_UNAUTHORIZED=0 SPEND_TRACK_ENV_FILE=/etc/spend_track/.env /usr/bin/node scripts/smoke.js https://localhost
+      - name: Logs
+        if: always()
+        run: sudo journalctl -u spend-track -u caddy --no-pager -n 100 || true

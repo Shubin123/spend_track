@@ -1,0 +1,16 @@
+# Caddy reverse proxy for Spend Track: automatic HTTPS (Let's Encrypt) for __DOMAIN__.
+# Installed to /etc/caddy/Caddyfile by scripts/install-ubuntu.sh when DOMAIN is set.
+__DOMAIN__ {
+	encode gzip
+	reverse_proxy 127.0.0.1:__PORT__ {
+		health_uri /api/health
+		health_interval 30s
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	log {
+		output file /var/log/caddy/spend_track.log
+	}
+}

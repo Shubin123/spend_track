@@ -30,20 +30,10 @@ for _ in $(seq 60); do
 done
 [[ -n "$URL" ]] || { echo "Timed out waiting for the tunnel URL." >&2; cat "$LOG" >&2; exit 1; }
 
-cat > api-config.js <<JS
-// Where the GitHub Pages copy of the site finds the API. Written by scripts/tunnel.sh.
-// Empty = browser-only mode. Ignored when the page is served by the Node server itself.
-window.SPEND_TRACK_API = '$URL';
-JS
 echo "Tunnel: $URL -> http://localhost:$PORT"
-
-if [[ $PUBLISH == y ]]; then
-  if git diff --quiet -- api-config.js; then echo "api-config.js unchanged"
-  else
-    git commit -q -m "Point GitHub Pages at API tunnel" -- api-config.js
-    git push -q && echo "Pushed. GitHub Pages will use the tunnel within a few minutes."
-  fi
-fi
+# Quick-tunnel DNS can take a few seconds to resolve everywhere; pages-api.sh health-checks it.
+for _ in $(seq 30); do curl -fs -o /dev/null --max-time 5 "$URL/api/health" && break; sleep 2; done
+if [[ $PUBLISH == y ]]; then bash scripts/pages-api.sh "$URL" --publish; else bash scripts/pages-api.sh "$URL"; fi
 
 echo "Tunnel is up; press Ctrl-C to stop."
 wait $CF_PID
