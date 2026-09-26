@@ -55,18 +55,36 @@
     try { localStorage.setItem(STORE_KEY, JSON.stringify({ txs: state.txs, budgets: state.budgets })); } catch (_) {}
   }
 
+  // The API is same-origin when the Node server serves the page. On static hosting
+  // (GitHub Pages) it's the URL in api-config.js, called with a bearer token, not a cookie.
+  const REMOTE_API = String(window.SPEND_TRACK_API || '').replace(/\/+$/, '');
+  const TOKEN_KEY = 'spendtrack.token';
+  let apiBase = ''; // '' = same origin
+  const getToken = () => { try { return localStorage.getItem(TOKEN_KEY); } catch (_) { return null; } };
+  const setToken = t => { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch (_) {} };
+
+  function apiFetch(base, method, path, body) {
+    const headers = {};
+    if (body) headers['Content-Type'] = 'application/json';
+    const token = base && getToken();
+    if (token) headers.Authorization = 'Bearer ' + token;
+    return fetch((base ? base + '/api/' : 'api/') + path, {
+      method, headers, credentials: base ? 'omit' : 'same-origin',
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(15000),
+    });
+  }
+
   async function api(method, path, body) {
     let res;
     try {
-      res = await fetch('api/' + path, {
-        method, credentials: 'same-origin',
-        headers: body ? { 'Content-Type': 'application/json' } : undefined,
-        body: body ? JSON.stringify(body) : undefined,
-      });
+      res = await apiFetch(apiBase, method, path, body);
     } catch (_) {
       throw Object.assign(new Error('Network error. Check your connection and try again.'), { status: 0 });
     }
     const data = await res.json().catch(() => ({}));
+    if (data.token) setToken(data.token);
+    if (res.status === 401 && apiBase) setToken(null);
     if (res.status === 401 && !path.startsWith('auth/')) showAuth('Your session expired. Please sign in again.');
     if (!res.ok) throw Object.assign(new Error(data.error || `Request failed (${res.status})`), { status: res.status, data });
     return data;
@@ -727,25 +745,34 @@
   });
   const logout = async () => {
     await api('POST', 'auth/logout', {}).catch(() => {});
+    setToken(null);
     authMode = 'login';
     showAuth();
   };
   $('#logoutBtn').onclick = logout;
   $('#mobileLogout').onclick = logout;
 
-  // Detect whether we're served by the API server or from static hosting.
+  // Returns true if an API answers at `base` ('' = same origin) and switches to it.
+  async function probe(base) {
+    const res = await apiFetch(base, 'GET', 'auth/me');
+    const isJson = (res.headers.get('content-type') || '').includes('application/json');
+    if (!isJson || !(res.ok || res.status === 401)) return false;
+    apiBase = base;
+    mode = 'api';
+    if (res.ok) {
+      user = (await res.json()).user;
+      await loadRemote();
+    } else if (base) setToken(null);
+    return true;
+  }
+
+  // Use the API server if one is reachable; otherwise stay in browser-only mode.
   async function boot() {
-    try {
-      const res = await fetch('api/auth/me', { credentials: 'same-origin' });
-      const isJson = (res.headers.get('content-type') || '').includes('application/json');
-      if (isJson && (res.ok || res.status === 401)) {
-        mode = 'api';
-        if (res.ok) {
-          user = (await res.json()).user;
-          await loadRemote();
-        }
-      }
-    } catch (_) { /* no server: stay in local mode */ }
+    let found = await probe('').catch(() => false);
+    if (!found && REMOTE_API) {
+      found = await probe(REMOTE_API).catch(() => false);
+      if (!found) toast('The sync server is offline, so this is browser-only mode.');
+    }
     if (mode === 'local') Object.assign(state, loadLocal());
     renderAccount();
     if (mode === 'api' && !user) return showAuth();

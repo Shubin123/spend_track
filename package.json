@@ -12,7 +12,8 @@
     "dev": "node --watch server/index.js",
     "migrate": "node scripts/migrate.js",
     "setup": "bash scripts/setup.sh",
-    "test": "node --test test/"
+    "test": "node --test test/",
+    "tunnel": "bash scripts/tunnel.sh"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

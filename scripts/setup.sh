@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Spend Track setup: writes DB credentials OUTSIDE the repo, installs deps,
-# downloads the AWS RDS CA bundle, runs migrations, and optionally creates an account.
+# downloads the AWS RDS CA bundle, runs migrations, swaps the master login for
+# least-privilege DB users, and optionally creates an account.
 #
 #   npm run setup            # interactive
 #   SPEND_TRACK_ENV_FILE=/path/.env npm run setup   # custom location
@@ -38,7 +39,7 @@ else
   ask DB_HOST "MySQL host" "${DB_HOST:-}"
   [[ -n "$DB_HOST" ]] || die "Host is required."
   ask DB_PORT "Port" "${DB_PORT:-3306}"
-  ask DB_USER "User" "${DB_USER:-admin}"
+  ask DB_USER "User (RDS master; replaced by restricted users in step 6)" "${DB_USER:-admin}"
   read -r -s -p "  Password: " DB_PASSWORD || true; echo
   [[ -n "$DB_PASSWORD" ]] || die "Password is required."
   [[ "$DB_PASSWORD" != *"'"* ]] || die "Passwords containing a single quote aren't supported in .env; set DB_PASSWORD in the environment instead."
@@ -82,7 +83,17 @@ export SPEND_TRACK_ENV_FILE="$ENV_FILE"
 node scripts/migrate.js || die "Migration failed. Check host, password, and that your IP is allowed by the RDS security group."
 ok "database ready"
 
-bold "6. Account (optional)"
+bold "6. Least-privilege database users"
+if grep -q "^DB_MIGRATE_USER=" "$ENV_FILE"; then
+  ok "restricted users already configured (rotate with: DB_ADMIN_USER=… DB_ADMIN_PASSWORD=… node scripts/create-db-users.js)"
+else
+  read -r -p "  Create spend_track_app / spend_track_migrator and drop the master password from $ENV_FILE? [Y/n]: " lp || true
+  if [[ "${lp:-Y}" =~ ^[Yy] ]]; then
+    node scripts/create-db-users.js || die "Could not create database users."
+  fi
+fi
+
+bold "7. Account (optional)"
 read -r -p "  Create a login now? [y/N]: " mk || true
 if [[ "${mk:-N}" =~ ^[Yy] ]]; then
   ask ST_NAME  "Name" "Demo User"

@@ -31,11 +31,20 @@ async function createSession(conn, res, userId) {
   await conn.query('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)',
     [sha256(token), userId, new Date(Date.now() + maxAge)]);
   res.cookie(COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: production, path: '/', maxAge });
+  return token;
+}
+
+// Same-origin requests use the HttpOnly cookie. Allowlisted cross-origin requests use
+// "Authorization: Bearer <token>" only; browsers never attach that header on their own.
+function sessionToken(req) {
+  const m = /^Bearer ([A-Za-z0-9_-]{20,})$/.exec(req.get('authorization') || '');
+  if (req.crossOrigin) return m ? m[1] : null;
+  return readCookie(req, COOKIE);
 }
 
 // Attaches req.user when a valid session cookie is present.
 async function loadSession(req, _res, next) {
-  const token = readCookie(req, COOKIE);
+  const token = sessionToken(req);
   if (token) {
     const [rows] = await getPool().query(
       `SELECT u.id, u.name, u.email FROM sessions s JOIN users u ON u.id = s.user_id
@@ -70,10 +79,10 @@ router.post('/signup', limiter, async (req, res) => {
       const id = r.insertId;
       await insertDefaultBudgets(conn, id);
       if (sample) await insertSampleData(conn, id);
-      await createSession(conn, res, id);
-      return { id, name, email };
+      const token = await createSession(conn, res, id);
+      return { id, name, email, token };
     });
-    res.status(201).json({ user: publicUser(user) });
+    res.status(201).json({ user: publicUser(user), ...(req.crossOrigin && { token: user.token }) });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'An account with that email already exists.' });
     throw err;
@@ -88,9 +97,9 @@ router.post('/login', limiter, async (req, res) => {
   const ok = await bcrypt.compare(password, user ? user.password_hash : DUMMY_HASH);
   if (!user || !ok) return res.status(401).json({ error: 'Incorrect email or password.' });
   const pool = getPool();
-  await createSession(pool, res, user.id);
+  const token = await createSession(pool, res, user.id);
   await pool.query('DELETE FROM sessions WHERE expires_at < UTC_TIMESTAMP()');
-  res.json({ user: publicUser(user) });
+  res.json({ user: publicUser(user), ...(req.crossOrigin && { token }) });
 });
 
 router.post('/logout', async (req, res) => {

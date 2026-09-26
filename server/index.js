@@ -8,11 +8,12 @@ const data = require('./data');
 
 const ROOT = path.join(__dirname, '..');
 // Only the front-end files are served; server code and config are never exposed.
-const STATIC_FILES = ['index.html', 'styles.css', 'app.js', 'seed.js'];
+const STATIC_FILES = ['index.html', 'styles.css', 'app.js', 'seed.js', 'api-config.js'];
 
 const app = express();
 app.disable('x-powered-by');
-if (config.production) app.set('trust proxy', 1);
+// Behind a proxy (or a local tunnel such as cloudflared), use X-Forwarded-For for rate limiting.
+app.set('trust proxy', config.production ? 1 : 'loopback');
 
 app.use((_req, res, next) => {
   res.set({
@@ -23,8 +24,25 @@ app.use((_req, res, next) => {
   next();
 });
 
-// CSRF defence: state-changing API calls must be JSON from our own origin.
-// Browsers can't send cross-site JSON without a CORS preflight, which we never allow.
+// CORS for allowlisted origins only, without credentials: those callers send a bearer
+// token, and the session cookie is ignored for them (see auth.loadSession).
+app.use('/api', (req, res, next) => {
+  const origin = req.get('origin');
+  if (!origin || !config.allowedOrigins.includes(origin)) return next();
+  req.crossOrigin = true;
+  res.set({ 'Access-Control-Allow-Origin': origin, Vary: 'Origin' });
+  if (req.method !== 'OPTIONS') return next();
+  res.set({
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Max-Age': '600',
+  });
+  res.sendStatus(204);
+});
+
+// CSRF defence: state-changing API calls must be JSON from our own origin (or an
+// allowlisted one using a bearer token). Browsers can't send cross-site JSON without a
+// CORS preflight, which only allowlisted origins pass.
 app.use('/api', (req, res, next) => {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
   // req.is() is null for bodyless requests (e.g. DELETE) and false for a non-JSON body.
@@ -32,7 +50,7 @@ app.use('/api', (req, res, next) => {
   const origin = req.get('origin');
   let originHost = null;
   try { originHost = origin && new URL(origin).host; } catch { /* malformed */ }
-  if (origin && originHost !== req.get('host')) return res.status(403).json({ error: 'Cross-origin request blocked.' });
+  if (origin && !req.crossOrigin && originHost !== req.get('host')) return res.status(403).json({ error: 'Cross-origin request blocked.' });
   next();
 });
 app.use('/api', express.json({ limit: '32kb' }));

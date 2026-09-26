@@ -5,14 +5,16 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { db } = require('../server/config');
+const { db, migrate } = require('../server/config');
 const { connectionOptions, mysql } = require('../server/db');
 
 const DIR = path.join(__dirname, '..', 'migrations');
 
 async function main() {
   if (!/^[A-Za-z0-9_]+$/.test(db.database)) throw new Error(`Invalid DB_NAME "${db.database}"`);
-  const conn = await mysql.createConnection(connectionOptions({ withDatabase: false, multipleStatements: true }));
+  // Prefer the DDL account from create-db-users.js; the runtime account can't alter the schema.
+  const creds = migrate.user ? { user: migrate.user, password: migrate.password } : {};
+  const conn = await mysql.createConnection(connectionOptions({ withDatabase: false, multipleStatements: true, ...creds }));
   try {
     await conn.query(`CREATE DATABASE IF NOT EXISTS \`${db.database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci`);
     await conn.changeUser({ database: db.database });

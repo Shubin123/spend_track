@@ -34,7 +34,16 @@ module.exports = {
     ssl: (process.env.DB_SSL || 'required').toLowerCase(),
     sslCa: process.env.DB_SSL_CA || '',
   },
+  // Optional separate account with DDL rights, used only by scripts/migrate.js.
+  migrate: {
+    user: process.env.DB_MIGRATE_USER || '',
+    password: process.env.DB_MIGRATE_PASSWORD || '',
+  },
   port: Number(process.env.PORT || 3000),
+  // Other sites allowed to call the API (e.g. the GitHub Pages front end through a tunnel).
+  // They authenticate with a bearer token, never the cookie.
+  allowedOrigins: (process.env.ALLOWED_ORIGINS ?? 'https://shubin123.github.io')
+    .split(',').map(s => s.trim()).filter(Boolean),
   production: process.env.NODE_ENV === 'production',
   sessionDays: Number(process.env.SESSION_TTL_DAYS || 30),
 };

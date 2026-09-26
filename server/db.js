@@ -3,7 +3,7 @@ const fs = require('fs');
 const mysql = require('mysql2/promise');
 const { db } = require('./config');
 
-function connectionOptions({ withDatabase = true, multipleStatements = false } = {}) {
+function connectionOptions({ withDatabase = true, multipleStatements = false, user = db.user, password = db.password } = {}) {
   let ssl;
   if (db.ssl !== 'off') {
     if (!db.sslCa || !fs.existsSync(db.sslCa)) {
@@ -15,8 +15,8 @@ function connectionOptions({ withDatabase = true, multipleStatements = false } =
   return {
     host: db.host,
     port: db.port,
-    user: db.user,
-    password: db.password,
+    user,
+    password,
     database: withDatabase ? db.database : undefined,
     ssl,
     multipleStatements,

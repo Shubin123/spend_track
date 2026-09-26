@@ -159,6 +159,32 @@ test('CSRF: non-JSON and cross-origin writes are blocked', async () => {
   assert.equal((await c('POST', '/api/transactions', tx(), { Origin: 'https://evil.example' })).status, 403);
 });
 
+test('allowlisted origin: CORS preflight, bearer token auth, cookie ignored', async () => {
+  const PAGES = 'https://shubin123.github.io';
+  const pre = await fetch(base + '/api/transactions', { method: 'OPTIONS', headers: { Origin: PAGES, 'Access-Control-Request-Method': 'POST' } });
+  assert.equal(pre.status, 204);
+  assert.equal(pre.headers.get('access-control-allow-origin'), PAGES);
+  assert.equal(pre.headers.get('access-control-allow-credentials'), null);
+  const evil = await fetch(base + '/api/transactions', { method: 'OPTIONS', headers: { Origin: 'https://evil.example', 'Access-Control-Request-Method': 'POST' } });
+  assert.equal(evil.headers.get('access-control-allow-origin'), null);
+
+  // Same-origin signup gets no token in the body; the cookie is the credential.
+  const { c, email } = await signup();
+  const plain = await c('POST', '/api/auth/login', { email, password: 'correct horse' });
+  assert.equal(plain.body.token, undefined);
+
+  // Cross-origin: token in the body, used as a bearer; a cookie alone is not accepted.
+  const x = client();
+  const login = await x('POST', '/api/auth/login', { email, password: 'correct horse' }, { Origin: PAGES });
+  assert.equal(login.status, 200);
+  assert.match(login.body.token, /^[A-Za-z0-9_-]{40,}$/);
+  assert.equal((await x('GET', '/api/auth/me', undefined, { Origin: PAGES })).status, 401);
+  const auth = { Origin: PAGES, Authorization: 'Bearer ' + login.body.token };
+  assert.equal((await client()('POST', '/api/transactions', tx(), auth)).status, 201);
+  assert.equal((await client()('POST', '/api/auth/logout', {}, auth)).status, 200);
+  assert.equal((await client()('GET', '/api/auth/me', undefined, auth)).status, 401);
+});
+
 test('server code and config are not served', async () => {
   for (const p of ['/server/config.js', '/package.json', '/.env', '/scripts/setup.sh']) {
     assert.equal((await fetch(base + p)).status, 404, p);
