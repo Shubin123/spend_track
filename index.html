@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Spend Track</title>
+  <meta name="description" content="A high-fidelity spending tracker prototype." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%234f46e5'/><path d='M9 20l5-5 4 4 6-8' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="logo" aria-hidden="true">
+          <svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8"/><path d="M9 20l5-5 4 4 6-8"/></svg>
+        </span>
+        <span>Spend Track</span>
+      </div>
+      <nav class="nav">
+        <button class="nav-item active" data-view="dashboard">
+          <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3zm10 8h8V11h-8zM3 21h8v-6H3zm10-18v6h8V3z"/></svg>
+          <span>Dashboard</span>
+        </button>
+        <button class="nav-item" data-view="transactions">
+          <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10" /></svg>
+          <span>Transactions</span>
+        </button>
+        <button class="nav-item" data-view="budgets">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v9l6 4"/></svg>
+          <span>Budgets</span>
+        </button>
+      </nav>
+      <div class="sidebar-foot">
+        <button class="ghost small" id="themeToggle" title="Toggle theme">
+          <svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          <span>Theme</span>
+        </button>
+        <button class="ghost small" id="resetData" title="Reset demo data">
+          <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg>
+          <span>Reset demo</span>
+        </button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1 id="viewTitle">Dashboard</h1>
+          <p class="muted" id="viewSubtitle">Your money at a glance</p>
+        </div>
+        <div class="topbar-actions">
+          <div class="month-picker" role="group" aria-label="Select month">
+            <button class="icon-btn" id="prevMonth" aria-label="Previous month">‹</button>
+            <span id="monthLabel">—</span>
+            <button class="icon-btn" id="nextMonth" aria-label="Next month">›</button>
+          </div>
+          <button class="primary" id="addBtn">
+            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            <span>Add transaction</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- DASHBOARD -->
+      <section class="view" id="view-dashboard">
+        <div class="kpis" id="kpis"></div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-head">
+              <h2>Spending pace</h2>
+              <div class="legend">
+                <span><i class="sw sw-cur"></i>This month</span>
+                <span><i class="sw sw-prev"></i>Last month</span>
+                <span><i class="sw sw-budget"></i>Budget</span>
+              </div>
+            </div>
+            <div class="chart" id="paceChart"></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>By category</h2></div>
+            <div class="donut-wrap">
+              <div class="chart donut" id="donutChart"></div>
+              <ul class="cat-list" id="catList"></ul>
+            </div>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-head"><h2>6-month trend</h2></div>
+            <div class="chart" id="barChart"></div>
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <h2>Recent</h2>
+              <button class="link" data-goto="transactions">View all →</button>
+            </div>
+            <ul class="tx-list compact" id="recentList"></ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- TRANSACTIONS -->
+      <section class="view hidden" id="view-transactions">
+        <div class="card">
+          <div class="toolbar">
+            <div class="search">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+              <input id="searchInput" type="search" placeholder="Search merchant or note…" />
+            </div>
+            <select id="catFilter" aria-label="Filter by category"></select>
+            <div class="seg" id="typeFilter" role="tablist">
+              <button class="active" data-type="all">All</button>
+              <button data-type="expense">Expenses</button>
+              <button data-type="income">Income</button>
+            </div>
+            <button class="ghost" id="exportCsv">
+              <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+              <span>Export CSV</span>
+            </button>
+          </div>
+          <div class="tx-summary" id="txSummary"></div>
+          <div id="txGroups"></div>
+        </div>
+      </section>
+
+      <!-- BUDGETS -->
+      <section class="view hidden" id="view-budgets">
+        <div class="budget-hero card" id="budgetHero"></div>
+        <div class="budget-grid" id="budgetGrid"></div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Mobile tab bar -->
+  <nav class="tabbar">
+    <button class="active" data-view="dashboard">
+      <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3zm10 8h8V11h-8zM3 21h8v-6H3zm10-18v6h8V3z"/></svg>Home
+    </button>
+    <button data-view="transactions">
+      <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Activity
+    </button>
+    <button data-view="budgets">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v9l6 4"/></svg>Budgets
+    </button>
+  </nav>
+
+  <!-- Add / edit modal -->
+  <dialog id="txDialog">
+    <form method="dialog" id="txForm">
+      <h3 id="txDialogTitle">Add transaction</h3>
+      <div class="seg full" id="txType">
+        <button type="button" class="active" data-type="expense">Expense</button>
+        <button type="button" data-type="income">Income</button>
+      </div>
+      <label class="amount-field">
+        <span>$</span>
+        <input id="fAmount" type="number" step="0.01" min="0.01" placeholder="0.00" required />
+      </label>
+      <label>Merchant
+        <input id="fMerchant" type="text" placeholder="e.g. Blue Bottle Coffee" required maxlength="60" />
+      </label>
+      <div class="row">
+        <label>Category
+          <select id="fCategory"></select>
+        </label>
+        <label>Date
+          <input id="fDate" type="date" required />
+        </label>
+      </div>
+      <label><span>Note <span class="muted">(optional)</span></span>
+        <input id="fNote" type="text" maxlength="120" />
+      </label>
+      <div class="dialog-actions">
+        <button type="button" class="danger ghost hidden" id="deleteTx">Delete</button>
+        <span class="spacer"></span>
+        <button type="button" class="ghost" id="cancelTx">Cancel</button>
+        <button type="submit" class="primary" id="saveTx">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Budget edit modal -->
+  <dialog id="budgetDialog">
+    <form method="dialog" id="budgetForm">
+      <h3>Edit budget · <span id="bCatName"></span></h3>
+      <label class="amount-field">
+        <span>$</span>
+        <input id="bAmount" type="number" step="1" min="0" required />
+      </label>
+      <p class="muted small">Monthly limit. Set to 0 to stop tracking this category.</p>
+      <div class="dialog-actions">
+        <span class="spacer"></span>
+        <button type="button" class="ghost" id="cancelBudget">Cancel</button>
+        <button type="submit" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="tooltip" id="tooltip" role="tooltip"></div>
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
