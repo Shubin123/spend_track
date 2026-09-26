@@ -18,7 +18,7 @@ A high-fidelity spending tracker with real accounts. The Node/Express API stores
   - Every change is saved to MySQL before the UI updates.
   - Edits use optimistic concurrency (`version` column). If two tabs or devices edit the same transaction, the second save gets `409` and shows the latest copy instead of silently overwriting.
   - Every query is scoped to the signed-in user.
-- Fresh teal and leaf-green theme with green for money in and red for money out; light and dark modes, responsive layout, and the `n` keyboard shortcut for a new entry
+- Three themes to pick from (Honey, Pastel, Twilight), with green for money in and red for money out in each; responsive layout, and the `n` keyboard shortcut for a new entry
 
 ## Setup
 
@@ -160,6 +160,7 @@ Smoke options: `npm run smoke -- <url>` for any server. Set `SMOKE_EMAIL`/`SMOKE
 index.html, styles.css, app.js   Front end (works standalone on GitHub Pages in browser-only mode)
 api-config.js                    API URL for the Pages copy (written by scripts/tunnel.sh)
 seed.js                          Categories + sample data, shared by browser and server
+images/                          Category icons (<category>.png), tinted with each category's color
 server/                          Express app: config, db pool, auth, data API
 migrations/                      Versioned SQL schema
 scripts/                         setup.sh, install-ubuntu.sh, doctor.js, migrate.js, create-user.js, create-db-users.js,

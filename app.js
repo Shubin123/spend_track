@@ -246,13 +246,23 @@
   }
 
   // ---------- Rendering: shared ----------
+  // Category icon: images/<category>.png drawn in the category's color on a matching tint.
+  // Income has no image, so it gets a plus sign.
+  const PLUS_ICON = `url("data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>')}")`;
+  // Category colors come from the active theme (--cat-<category> in styles.css).
+  const catColor = cat => `var(--cat-${CATEGORIES[cat] ? cat : 'shopping'})`;
+  function catIcon(cat) {
+    const img = cat === 'income' ? PLUS_ICON : `url("images/${CATEGORIES[cat] ? cat : 'shopping'}.png")`;
+    return `<i class="cat-icon" style="--c:${catColor(cat)};--img:${esc(img)}" aria-hidden="true"></i>`;
+  }
+
   function txRow(t) {
     const c = CATEGORIES[t.category] || CATEGORIES.shopping;
     const income = t.type === 'income';
     const detail = [c.name, t.note ? esc(t.note) : '', posted(t) ? '' : fmtDate(t.date, { month: 'short', day: 'numeric', year: 'numeric' })]
       .filter(Boolean).join(', ');
     return `<li><button class="tx${posted(t) ? '' : ' upcoming'}" data-id="${t.id}">
-      <i class="dot" style="background:${c.color}"></i>
+      ${catIcon(t.category)}
       <span class="tx-main"><span class="m">${esc(t.merchant)}</span><span class="c">${detail}</span></span>
       <span class="tx-amt ${income ? 'gain' : 'loss'}">${income ? '+' : '−'}${money(t.amount)}</span>
     </button></li>`;
@@ -355,7 +365,7 @@
     };
     for (const [cat, v] of entries) {
       const a1 = a0 + (v / all) * Math.PI * 2 - (entries.length > 1 ? 0.014 : 0);
-      paths += `<path class="donut-path" data-cat="${cat}" d="${entries.length === 1 ? arc(a0, a0 + Math.PI * 1.9999) : arc(a0, a1)}" fill="${CATEGORIES[cat].color}"/>`;
+      paths += `<path class="donut-path" data-cat="${cat}" d="${entries.length === 1 ? arc(a0, a0 + Math.PI * 1.9999) : arc(a0, a1)}" fill="${catColor(cat)}"/>`;
       a0 += (v / all) * Math.PI * 2;
     }
     const el = $('#donutChart');
@@ -394,7 +404,7 @@
     $('#rankBy').value = state.rankBy;
     $('#rankList').innerHTML = rows.length ? rows.map(([key, v], i) => {
       const cat = byMerchant ? catOf(key) : key;
-      const color = CATEGORIES[cat].color;
+      const color = catColor(cat);
       return `<li><button class="rank-row" data-key="${esc(key)}" data-cat="${cat}">
         <span class="rank-n">${i + 1}</span>
         <span class="rank-name"><i class="dot" style="background:${color}"></i><span>${byMerchant ? esc(key) : CATEGORIES[key].name}</span></span>
@@ -541,9 +551,9 @@
       else if (mk === THIS_MONTH && proj > b * 1.02 && cat !== 'housing') status = `<span class="status warn">At risk</span>`;
       else status = `<span class="status gain">On track</span>`;
       return `<button class="panel budget-card" data-cat="${cat}" aria-label="Edit ${c.name} budget">
-        <div class="top"><i class="dot" style="background:${c.color}"></i><div class="name">${c.name}</div>${status}</div>
+        <div class="top">${catIcon(cat)}<div class="name">${c.name}</div>${status}</div>
         <div class="amounts"><b>${money(s, true)}</b><span class="muted">of ${money(b, true)}</span></div>
-        <div class="meter ${p > 1 ? 'over' : p > 0.85 ? 'warn' : ''}"><i style="width:${Math.min(p, 1) * 100}%;${p <= .85 ? `background:${c.color}` : ''}"></i></div>
+        <div class="meter ${p > 1 ? 'over' : p > 0.85 ? 'warn' : ''}"><i style="width:${Math.min(p, 1) * 100}%;${p <= .85 ? `background:${catColor(cat)}` : ''}"></i></div>
         <div class="foot"><span>${b ? (s <= b ? `${money(b - s, true)} left` : `${money(s - b, true)} over`) : 'Select to set a limit'}</span><span>${b ? (p * 100).toFixed(0) + '%' : ''}</span></div>
       </button>`;
     }).join('');
@@ -743,12 +753,18 @@
   $$('#typeFilter button').forEach(b => b.onclick = () => { state.filter.type = b.dataset.type; renderTransactions(); });
   $('#exportCsv').onclick = exportCsv;
 
-  // Account menu
-  const menu = $('#accountMenu'), avatarBtn = $('#avatarBtn');
-  const setMenu = open => { menu.classList.toggle('hidden', !open); avatarBtn.setAttribute('aria-expanded', open); };
-  avatarBtn.onclick = e => { e.stopPropagation(); setMenu(menu.classList.contains('hidden')); };
-  document.addEventListener('click', e => { if (!menu.contains(e.target)) setMenu(false); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.classList.contains('hidden')) { setMenu(false); avatarBtn.focus(); } });
+  // Top-bar menus (theme and account): one open at a time, closed by an outside click or Escape.
+  function popover(btn, menu) {
+    const set = open => { menu.classList.toggle('hidden', !open); btn.setAttribute('aria-expanded', open); };
+    btn.onclick = e => { e.stopPropagation(); const open = menu.classList.contains('hidden'); closeMenus(); set(open); };
+    document.addEventListener('click', e => { if (!menu.contains(e.target)) set(false); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.classList.contains('hidden')) { set(false); btn.focus(); } });
+    return set;
+  }
+  const avatarBtn = $('#avatarBtn');
+  const setMenu = popover(avatarBtn, $('#accountMenu'));
+  const setThemeMenu = popover($('#themeBtn'), $('#themeMenu'));
+  function closeMenus() { setMenu(false); setThemeMenu(false); }
 
   $('#resetData').onclick = async () => {
     setMenu(false);
@@ -763,18 +779,21 @@
     }
   };
 
-  // Theme: explicit choice wins, otherwise follow the OS.
+  // Theme: the user's choice wins; otherwise Twilight for a dark OS setting, Honey for light.
+  // "light"/"dark" were saved by the earlier two-theme toggle.
+  const THEMES = ['honey', 'pastel', 'twilight'];
   const root = document.documentElement;
   const applyTheme = t => {
     root.setAttribute('data-theme', t);
-    $('#themeToggle').setAttribute('aria-label', t === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
+    $$('[data-theme-choice]').forEach(b => b.setAttribute('aria-checked', b.dataset.themeChoice === t));
   };
-  applyTheme(storage.get('spendtrack.theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
-  $('#themeToggle').onclick = () => {
-    const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-    applyTheme(next);
-    storage.set('spendtrack.theme', next);
-  };
+  const savedTheme = { light: 'honey', dark: 'twilight' }[storage.get('spendtrack.theme')] || storage.get('spendtrack.theme');
+  applyTheme(THEMES.includes(savedTheme) ? savedTheme : (matchMedia('(prefers-color-scheme: dark)').matches ? 'twilight' : 'honey'));
+  $$('[data-theme-choice]').forEach(b => b.onclick = () => {
+    applyTheme(b.dataset.themeChoice);
+    storage.set('spendtrack.theme', b.dataset.themeChoice);
+    setThemeMenu(false);
+  });
 
   const overlayOpen = () => !$('#auth').classList.contains('hidden') || !$('#landing').classList.contains('hidden');
   document.addEventListener('keydown', e => {

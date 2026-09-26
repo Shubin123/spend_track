@@ -7,16 +7,16 @@
   'use strict';
 
   const CATEGORIES = {
-    housing:       { name: 'Housing',       icon: '🏠', color: '#0f766e' },
-    groceries:     { name: 'Groceries',     icon: '🛒', color: '#84a950' },
-    dining:        { name: 'Dining',        icon: '🍜', color: '#f2a541' },
-    transport:     { name: 'Transport',     icon: '🚗', color: '#38a3d1' },
-    utilities:     { name: 'Utilities',     icon: '💡', color: '#5b7fb8' },
-    entertainment: { name: 'Entertainment', icon: '🎬', color: '#e58fb0' },
-    shopping:      { name: 'Shopping',      icon: '🛍️', color: '#c58a5a' },
-    health:        { name: 'Health',        icon: '💪', color: '#2bb3a3' },
-    travel:        { name: 'Travel',        icon: '✈️', color: '#8f86d6' },
-    income:        { name: 'Income',        icon: '💰', color: '#217a3c' },
+    housing:       { name: 'Housing',       icon: '🏠' },
+    groceries:     { name: 'Groceries',     icon: '🛒' },
+    dining:        { name: 'Dining',        icon: '🍜' },
+    transport:     { name: 'Transport',     icon: '🚗' },
+    utilities:     { name: 'Utilities',     icon: '💡' },
+    entertainment: { name: 'Entertainment', icon: '🎬' },
+    shopping:      { name: 'Shopping',      icon: '🛍️' },
+    health:        { name: 'Health',        icon: '💪' },
+    travel:        { name: 'Travel',        icon: '✈️' },
+    income:        { name: 'Income',        icon: '💰' },
   };
   const EXPENSE_CATS = Object.keys(CATEGORIES).filter(k => k !== 'income');
   const DEFAULT_BUDGETS = {

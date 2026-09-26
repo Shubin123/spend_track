@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' x2='1'><stop offset='0' stop-color='%230f766e'/><stop offset='.5' stop-color='%2322a05a'/><stop offset='1' stop-color='%238cb829'/></linearGradient></defs><circle cx='16' cy='16' r='11' fill='none' stroke='url(%23g)' stroke-width='6'/></svg>" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' x2='1'><stop offset='0' stop-color='%23fbab57'/><stop offset='.5' stop-color='%23c48cb3'/><stop offset='1' stop-color='%230d1e4c'/></linearGradient></defs><circle cx='16' cy='16' r='11' fill='none' stroke='url(%23g)' stroke-width='6'/></svg>" />
 </head>
 <body>
   <header class="topbar">
@@ -20,9 +20,22 @@
       <button data-view="budgets">Budgets</button>
     </nav>
     <div class="top-actions">
-      <button class="icon-btn" id="themeToggle" aria-label="Switch theme">
-        <svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
-      </button>
+      <div class="menu-wrap">
+        <button class="icon-btn" id="themeBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="themeMenu" aria-label="Theme">
+          <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.8-1 1.4-2-.4-1 .3-2 1.4-2H17a4 4 0 0 0 4-4c0-5.5-4-10-9-10z"/><circle cx="7.5" cy="11.5" r="1"/><circle cx="10" cy="7.5" r="1"/><circle cx="15" cy="8" r="1"/></svg>
+        </button>
+        <div class="menu theme-menu hidden" id="themeMenu" role="menu" aria-label="Theme">
+          <button role="menuitemradio" aria-checked="false" data-theme-choice="honey">Honey
+            <span class="swatches" aria-hidden="true"><i style="background:#fbab57"></i><i style="background:#fec674"></i><i style="background:#222222"></i><i style="background:#fff3e2"></i></span>
+          </button>
+          <button role="menuitemradio" aria-checked="false" data-theme-choice="pastel">Pastel
+            <span class="swatches" aria-hidden="true"><i style="background:#b4baf2"></i><i style="background:#e6db8f"></i><i style="background:#bcd6cb"></i><i style="background:#1b1b1b"></i></span>
+          </button>
+          <button role="menuitemradio" aria-checked="false" data-theme-choice="twilight">Twilight
+            <span class="swatches" aria-hidden="true"><i style="background:#0d1e4c"></i><i style="background:#c48cb3"></i><i style="background:#e5c9d7"></i><i style="background:#83a6ce"></i></span>
+          </button>
+        </div>
+      </div>
       <div class="menu-wrap">
         <button class="avatar" id="avatarBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="accountMenu" aria-label="Account">?</button>
         <div class="menu hidden" id="accountMenu" role="menu">
@@ -226,9 +239,9 @@
           <circle cx="100" cy="100" r="72" pathLength="100" stroke="var(--primary)" stroke-dasharray="37 63" stroke-dashoffset="0"/>
           <circle cx="100" cy="100" r="72" pathLength="100" stroke="var(--leaf)" stroke-dasharray="19 81" stroke-dashoffset="-38"/>
           <circle cx="100" cy="100" r="72" pathLength="100" stroke="var(--lime)" stroke-dasharray="15 85" stroke-dashoffset="-58"/>
-          <circle cx="100" cy="100" r="72" pathLength="100" stroke="#38a3d1" stroke-dasharray="11 89" stroke-dashoffset="-74"/>
-          <circle cx="100" cy="100" r="72" pathLength="100" stroke="#f2a541" stroke-dasharray="6 94" stroke-dashoffset="-86"/>
-          <circle cx="100" cy="100" r="72" pathLength="100" stroke="#8f86d6" stroke-dasharray="6 94" stroke-dashoffset="-93"/>
+          <circle cx="100" cy="100" r="72" pathLength="100" stroke="var(--cat-transport)" stroke-dasharray="11 89" stroke-dashoffset="-74"/>
+          <circle cx="100" cy="100" r="72" pathLength="100" stroke="var(--cat-dining)" stroke-dasharray="6 94" stroke-dashoffset="-86"/>
+          <circle cx="100" cy="100" r="72" pathLength="100" stroke="var(--cat-travel)" stroke-dasharray="6 94" stroke-dashoffset="-93"/>
         </g>
       </svg>
     </div>
