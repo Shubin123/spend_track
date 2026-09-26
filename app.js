@@ -361,7 +361,7 @@
     const el = $('#donutChart');
     el.innerHTML = svgEl(200, 200, `
       <defs><linearGradient id="donutTrack" x1="0" x2="1" y1="0" y2="1">
-        <stop offset="0" stop-color="var(--violet)"/><stop offset=".5" stop-color="var(--blue)"/><stop offset="1" stop-color="var(--magenta)"/>
+        <stop offset="0" stop-color="var(--primary)"/><stop offset=".5" stop-color="var(--leaf)"/><stop offset="1" stop-color="var(--lime)"/>
       </linearGradient></defs>
       <circle cx="100" cy="100" r="95" fill="none" stroke="url(#donutTrack)" stroke-width="1.5"/>
       ${all ? paths : `<circle cx="100" cy="100" r="71" fill="none" stroke="var(--sunk)" stroke-width="26"/>`}
@@ -499,7 +499,7 @@
     const pct = budget ? spent / budget : 0;
     const projected = mk === THIS_MONTH && elapsed ? spent / elapsed * dim : spent;
     const circ = 2 * Math.PI * 58;
-    const ringColor = pct > 1 ? 'var(--loss)' : pct > 0.85 ? 'var(--warn)' : 'var(--violet)';
+    const ringColor = pct > 1 ? 'var(--loss)' : pct > 0.85 ? 'var(--warn)' : 'var(--primary)';
 
     const overCats = EXPENSE_CATS.filter(c => state.budgets[c] && (spentBy[c] || 0) > state.budgets[c]);
     let note, good;

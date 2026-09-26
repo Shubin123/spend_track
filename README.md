@@ -18,7 +18,7 @@ A high-fidelity spending tracker with real accounts. The Node/Express API stores
   - Every change is saved to MySQL before the UI updates.
   - Edits use optimistic concurrency (`version` column). If two tabs or devices edit the same transaction, the second save gets `409` and shows the latest copy instead of silently overwriting.
   - Every query is scoped to the signed-in user.
-- Violet, blue, and magenta theme with green for money in and red for money out; light and dark modes, responsive layout, and the `n` keyboard shortcut for a new entry
+- Fresh teal and leaf-green theme with green for money in and red for money out; light and dark modes, responsive layout, and the `n` keyboard shortcut for a new entry
 
 ## Setup
 
