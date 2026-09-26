@@ -246,13 +246,22 @@
   }
 
   // ---------- Rendering: shared ----------
+  // Category icon: images/<category>.png drawn in the category's color on a matching tint.
+  // Income has no image, so it gets a plus sign.
+  const PLUS_ICON = `url("data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>')}")`;
+  function catIcon(cat) {
+    const c = CATEGORIES[cat] || CATEGORIES.shopping;
+    const img = cat === 'income' ? PLUS_ICON : `url("images/${CATEGORIES[cat] ? cat : 'shopping'}.png")`;
+    return `<i class="cat-icon" style="--c:${c.color};--img:${esc(img)}" aria-hidden="true"></i>`;
+  }
+
   function txRow(t) {
     const c = CATEGORIES[t.category] || CATEGORIES.shopping;
     const income = t.type === 'income';
     const detail = [c.name, t.note ? esc(t.note) : '', posted(t) ? '' : fmtDate(t.date, { month: 'short', day: 'numeric', year: 'numeric' })]
       .filter(Boolean).join(', ');
     return `<li><button class="tx${posted(t) ? '' : ' upcoming'}" data-id="${t.id}">
-      <i class="dot" style="background:${c.color}"></i>
+      ${catIcon(t.category)}
       <span class="tx-main"><span class="m">${esc(t.merchant)}</span><span class="c">${detail}</span></span>
       <span class="tx-amt ${income ? 'gain' : 'loss'}">${income ? '+' : '−'}${money(t.amount)}</span>
     </button></li>`;
@@ -541,7 +550,7 @@
       else if (mk === THIS_MONTH && proj > b * 1.02 && cat !== 'housing') status = `<span class="status warn">At risk</span>`;
       else status = `<span class="status gain">On track</span>`;
       return `<button class="panel budget-card" data-cat="${cat}" aria-label="Edit ${c.name} budget">
-        <div class="top"><i class="dot" style="background:${c.color}"></i><div class="name">${c.name}</div>${status}</div>
+        <div class="top">${catIcon(cat)}<div class="name">${c.name}</div>${status}</div>
         <div class="amounts"><b>${money(s, true)}</b><span class="muted">of ${money(b, true)}</span></div>
         <div class="meter ${p > 1 ? 'over' : p > 0.85 ? 'warn' : ''}"><i style="width:${Math.min(p, 1) * 100}%;${p <= .85 ? `background:${c.color}` : ''}"></i></div>
         <div class="foot"><span>${b ? (s <= b ? `${money(b - s, true)} left` : `${money(s - b, true)} over`) : 'Select to set a limit'}</span><span>${b ? (p * 100).toFixed(0) + '%' : ''}</span></div>

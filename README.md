@@ -160,6 +160,7 @@ Smoke options: `npm run smoke -- <url>` for any server. Set `SMOKE_EMAIL`/`SMOKE
 index.html, styles.css, app.js   Front end (works standalone on GitHub Pages in browser-only mode)
 api-config.js                    API URL for the Pages copy (written by scripts/tunnel.sh)
 seed.js                          Categories + sample data, shared by browser and server
+images/                          Category icons (<category>.png), tinted with each category's color
 server/                          Express app: config, db pool, auth, data API
 migrations/                      Versioned SQL schema
 scripts/                         setup.sh, install-ubuntu.sh, doctor.js, migrate.js, create-user.js, create-db-users.js,

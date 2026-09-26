@@ -75,6 +75,8 @@ app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found.' }));
 
 app.get('/', (_req, res) => res.sendFile(path.join(ROOT, 'index.html')));
 for (const f of STATIC_FILES) app.get('/' + f, (_req, res) => res.sendFile(path.join(ROOT, f)));
+// Category icons. Only this folder is exposed, and never as a directory listing.
+app.use('/images', express.static(path.join(ROOT, 'images'), { index: false, dotfiles: 'ignore', maxAge: '7d' }));
 
 app.use((err, _req, res, _next) => {
   if (err.status && err.status < 500) return res.status(err.status).json({ error: err.message });
