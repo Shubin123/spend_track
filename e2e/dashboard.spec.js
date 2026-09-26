@@ -67,10 +67,13 @@ test('reset asks first, and only replaces data when confirmed', async ({ signedI
 
 test('theme choice persists across reloads', async ({ signedIn: app, page }) => {
   const html = page.locator('html');
-  const initial = await html.getAttribute('data-theme');
-  const flipped = initial === 'dark' ? 'light' : 'dark';
-  await page.getByRole('button', { name: `Switch to ${flipped} theme` }).click();
-  await expect(html).toHaveAttribute('data-theme', flipped);
+  for (const theme of ['Pastel', 'Twilight', 'Honey', 'Pastel']) {
+    await page.getByRole('button', { name: 'Theme' }).click();
+    await page.getByRole('menuitemradio', { name: theme }).click();
+    await expect(html).toHaveAttribute('data-theme', theme.toLowerCase());
+  }
   await app.reload();
-  await expect(html).toHaveAttribute('data-theme', flipped);
+  await expect(html).toHaveAttribute('data-theme', 'pastel');
+  await page.getByRole('button', { name: 'Theme' }).click();
+  await expect(page.getByRole('menuitemradio', { name: 'Pastel' })).toHaveAttribute('aria-checked', 'true');
 });
