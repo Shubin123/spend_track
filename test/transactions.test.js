@@ -181,7 +181,7 @@ describe('isolation between users', { concurrency: true }, () => {
 });
 
 describe('reset', { concurrency: true }, () => {
-  it("clears only this user's transactions and preserves budget limits", async () => {
+  it("clears only this user's transactions and zeros saved budgets", async () => {
     const a = await signedIn(ctx);
     const b = await signedIn(ctx);
     await f.createTx(a.user.id, { merchant: 'Mine' });
@@ -190,10 +190,15 @@ describe('reset', { concurrency: true }, () => {
     const theirs = await f.createTx(b.user.id, { merchant: 'Theirs' });
     await a.c.put('/api/budgets/dining', { amount: 1 });
 
-    assert.equal((await a.c.post('/api/reset')).status, 200);
+    const reset = await a.c.post('/api/reset');
+    assert.equal(reset.status, 200);
+    const zeroBudgets = Object.fromEntries(Object.keys(DEFAULT_BUDGETS).map(cat => [cat, 0]));
+    assert.deepEqual(reset.body, { ok: true, transactions: [], budgets: zeroBudgets });
     const data = (await a.c.get('/api/data')).body;
     assert.deepEqual(data.transactions, []);
-    assert.deepEqual(data.budgets, { ...DEFAULT_BUDGETS, dining: 1 });
+    assert.deepEqual(data.budgets, zeroBudgets);
+    assert.deepEqual((await b.c.get('/api/data')).body.budgets, DEFAULT_BUDGETS);
+    assert.deepEqual((await a.c.post('/api/reset')).body, reset.body);
     assert.ok(await dbTx(theirs.id), "other users' data is untouched");
   });
 

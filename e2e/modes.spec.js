@@ -23,7 +23,7 @@ test('browser-only reset persists an empty account across reloads', async ({ app
   await app.getStarted();
   await app.addTx({ amount: 25, merchant: 'Reset Local Expense' });
   await app.addTx({ amount: 1000, merchant: 'Reset Local Income', type: 'income', category: 'income' });
-  const budgets = await page.evaluate(() => JSON.parse(localStorage.getItem('spendtrack.v1')).budgets);
+  const budgets = Object.fromEntries(Object.keys(require('../seed').DEFAULT_BUDGETS).map(cat => [cat, 0]));
   page.once('dialog', d => {
     expect(d.message()).toBe('Reset all financial data? This cannot be undone.');
     d.accept();

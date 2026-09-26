@@ -111,15 +111,17 @@ router.put('/budgets/:category', async (req, res) => {
   res.json({ category: cat, amount });
 });
 
-// Clear this user's transactions while preserving their configured budget limits.
+// Clear this user's transactions and zero every saved budget atomically.
 // READ COMMITTED avoids the gap locks that make this bulk delete deadlock with
 // other users' writes; locking the user row serialises two resets of the same account.
 router.post('/reset', async (req, res) => {
-  await withTransaction(async conn => {
+  const budgets = await withTransaction(async conn => {
     await conn.query('SELECT id FROM users WHERE id = ? FOR UPDATE', [req.user.id]);
     await conn.query('DELETE FROM transactions WHERE user_id = ?', [req.user.id]);
+    await conn.query('UPDATE budgets SET amount = 0 WHERE user_id = ?', [req.user.id]);
+    return getBudgets(conn, req.user.id);
   }, { isolation: 'READ COMMITTED' });
-  res.json({ ok: true });
+  res.json({ ok: true, transactions: [], budgets });
 });
 
 module.exports = { router, HttpError, validateTx, insertSampleData, insertDefaultBudgets };

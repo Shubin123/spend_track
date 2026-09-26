@@ -191,10 +191,15 @@
     },
     async reset() {
       if (mode === 'api') {
-        await api('POST', 'reset', {});
-        await loadRemote();
+        const data = await api('POST', 'reset', {});
+        if (!Array.isArray(data.transactions) || !data.budgets) {
+          throw new Error('The server needs an update to reset all financial data.');
+        }
+        state.txs = data.transactions;
+        state.budgets = data.budgets;
       } else {
         state.txs = [];
+        state.budgets = Object.fromEntries(EXPENSE_CATS.map(cat => [cat, 0]));
         saveLocal();
       }
     },
@@ -554,7 +559,7 @@
         <div class="top">${catIcon(cat)}<div class="name">${c.name}</div>${status}</div>
         <div class="amounts"><b>${money(s, true)}</b><span class="muted">of ${money(b, true)}</span></div>
         <div class="meter ${p > 1 ? 'over' : p > 0.85 ? 'warn' : ''}"><i style="width:${Math.min(p, 1) * 100}%;${p <= .85 ? `background:${catColor(cat)}` : ''}"></i></div>
-        <div class="foot"><span>${b ? (s <= b ? `${money(b - s, true)} left` : `${money(s - b, true)} over`) : 'Select to set a limit'}</span><span>${b ? (p * 100).toFixed(0) + '%' : ''}</span></div>
+        <div class="foot"><span>${b ? (s <= b ? `${money(b - s, true)} left` : `${money(s - b, true)} over`) : 'Select to set a limit'}</span><span>${(p * 100).toFixed(0)}%</span></div>
       </button>`;
     }).join('');
   }

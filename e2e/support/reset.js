@@ -8,6 +8,7 @@ async function assertCleared(app, page) {
     await expect(app.spent).toHaveText('$0.00');
     await expect(app.stat('Money in')).toHaveText('$0.00');
     await expect(app.stat('Net')).toHaveText('$0.00');
+    if (period === 'month') await expect(app.stat('Budget left')).toHaveText('$0 of $0');
     await expect(page.locator('#donutChart .donut-path')).toHaveCount(0);
     await expect(page.locator('#donutChart .c-name')).toHaveText('Nothing spent');
     await expect(page.locator('#rankList .rank-row')).toHaveCount(0);
@@ -20,6 +21,8 @@ async function assertCleared(app, page) {
   for (const card of await page.locator('.budget-card').all()) {
     await expect(card.locator('.amounts b')).toHaveText('$0');
     await expect(card.locator('.meter i')).toHaveAttribute('style', /width:0%/);
+    await expect(card.locator('.amounts .muted')).toHaveText('of $0');
+    await expect(card.locator('.status')).toHaveText('No budget');
     await expect(card.locator('.foot span').last()).toHaveText('0%');
   }
 }
