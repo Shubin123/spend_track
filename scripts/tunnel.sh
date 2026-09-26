@@ -16,7 +16,7 @@ PUBLISH=n; [[ "${1:-}" == "--publish" ]] && PUBLISH=y
 command -v cloudflared >/dev/null || { echo "cloudflared is not installed: brew install cloudflared" >&2; exit 1; }
 curl -fsS -o /dev/null "http://localhost:$PORT/" || { echo "Nothing on http://localhost:$PORT. Run npm start first." >&2; exit 1; }
 
-LOG="$(mktemp -t spend_track_tunnel)"
+LOG="$(mktemp -t spend_track_tunnel.XXXXXX)"
 cloudflared tunnel --no-autoupdate --url "http://localhost:$PORT" >"$LOG" 2>&1 &
 CF_PID=$!
 trap 'kill $CF_PID 2>/dev/null; rm -f "$LOG"' EXIT
