@@ -10,14 +10,14 @@ test('add a transaction: shown immediately, saved to MySQL, survives reload', as
   await app.addTx({ amount: '12.34', merchant: 'Corner Bakery', category: 'groceries', note: 'bread' });
   await expect(app.txDialog).toBeHidden();
   await expect(app.toast).toHaveText('Added $12.34 at Corner Bakery');
-  await expect(page.locator('#recentList')).toContainText('Corner Bakery');
+  await expect(page.locator('#rankList')).toContainText('Groceries');
 
   expect(await stored(db, account.id, 'Corner Bakery')).toEqual({ merchant: 'Corner Bakery', amount: 12.34, category: 'groceries', type: 'expense', date: today, version: 1 });
 
   await app.reload();
   await app.nav('transactions');
   await expect(app.row('Corner Bakery')).toContainText('−$12.34');
-  await expect(app.row('Corner Bakery')).toContainText('Groceries · bread');
+  await expect(app.row('Corner Bakery')).toContainText('Groceries, bread');
 });
 
 test('income is recorded with a plus sign', async ({ signedIn: app, account, db }) => {
@@ -30,7 +30,7 @@ test('income is recorded with a plus sign', async ({ signedIn: app, account, db 
 test('the "n" shortcut opens the add dialog, but not while typing', async ({ signedIn: app, page }) => {
   await page.keyboard.press('n');
   await expect(app.txDialog).toBeVisible();
-  await expect(page.locator('#txDialogTitle')).toHaveText('Add transaction');
+  await expect(page.locator('#txDialogTitle')).toHaveText('Add entry');
   await page.getByRole('button', { name: 'Cancel' }).click();
 
   await app.nav('transactions');
@@ -58,7 +58,7 @@ test('edit, delete, and undo are all persisted', async ({ signedIn: app, page, a
   await app.nav('transactions');
 
   await app.editTx('Gym', { amount: '45.5', merchant: 'Gym Plus' });
-  await expect(app.toast).toHaveText('Transaction updated');
+  await expect(app.toast).toHaveText('Entry updated');
   await expect(app.row('Gym Plus')).toContainText('$45.50');
   expect(await stored(db, account.id, 'Gym Plus')).toMatchObject({ amount: 45.5, version: 2 });
 
@@ -91,7 +91,7 @@ test('a failed save keeps the dialog open, shows the error, and adds nothing', a
   await app.addTx({ amount: 8, merchant: 'Offline Lunch' });
   await expect(app.toast).toHaveText('Network error. Check your connection and try again.');
   await expect(app.txDialog).toBeVisible();
-  await expect(page.locator('#recentList')).not.toContainText('Offline Lunch');
+  await expect(app.spent).toHaveText('$0.00');
 
   await page.unroute(/\/api\/transactions$/);
   await app.txDialog.getByRole('button', { name: 'Save' }).click(); // retry with the same form
@@ -131,10 +131,10 @@ test('month navigation shows each month\'s transactions', async ({ signedIn: app
   await expect(app.row('This Month Rent')).toBeVisible();
   await expect(app.row('Last Month Rent')).toHaveCount(0);
 
-  await page.getByRole('button', { name: 'Previous month' }).click();
+  await page.getByRole('button', { name: 'Previous period' }).click();
   await expect(app.row('Last Month Rent')).toBeVisible();
   await expect(app.row('This Month Rent')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Next month' }).click();
+  await page.getByRole('button', { name: 'Next period' }).click();
   await expect(app.row('This Month Rent')).toBeVisible();
 });
 

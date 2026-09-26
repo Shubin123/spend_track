@@ -7,16 +7,16 @@
   'use strict';
 
   const CATEGORIES = {
-    housing:       { name: 'Housing',       icon: '🏠', color: '#6366f1' },
-    groceries:     { name: 'Groceries',     icon: '🛒', color: '#10b981' },
-    dining:        { name: 'Dining',        icon: '🍜', color: '#f59e0b' },
-    transport:     { name: 'Transport',     icon: '🚗', color: '#3b82f6' },
-    utilities:     { name: 'Utilities',     icon: '💡', color: '#8b5cf6' },
-    entertainment: { name: 'Entertainment', icon: '🎬', color: '#ec4899' },
-    shopping:      { name: 'Shopping',      icon: '🛍️', color: '#f97316' },
-    health:        { name: 'Health',        icon: '💪', color: '#14b8a6' },
-    travel:        { name: 'Travel',        icon: '✈️', color: '#0ea5e9' },
-    income:        { name: 'Income',        icon: '💰', color: '#059669' },
+    housing:       { name: 'Housing',       icon: '🏠', color: '#6b3cf0' },
+    groceries:     { name: 'Groceries',     icon: '🛒', color: '#2d6bff' },
+    dining:        { name: 'Dining',        icon: '🍜', color: '#d93a9a' },
+    transport:     { name: 'Transport',     icon: '🚗', color: '#19a7ce' },
+    utilities:     { name: 'Utilities',     icon: '💡', color: '#a48bf7' },
+    entertainment: { name: 'Entertainment', icon: '🎬', color: '#f08bc6' },
+    shopping:      { name: 'Shopping',      icon: '🛍️', color: '#e8a13a' },
+    health:        { name: 'Health',        icon: '💪', color: '#8a86a8' },
+    travel:        { name: 'Travel',        icon: '✈️', color: '#b35ad6' },
+    income:        { name: 'Income',        icon: '💰', color: '#0b8454' },
   };
   const EXPENSE_CATS = Object.keys(CATEGORIES).filter(k => k !== 'income');
   const DEFAULT_BUDGETS = {

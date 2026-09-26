@@ -20,20 +20,25 @@ class App {
   async reload() { await this.page.reload(); await this.ready(); }
   ready() { return expect(this.page.locator('html')).toHaveAttribute('data-state', 'ready'); }
 
-  async signOut() { await this.page.locator('#logoutBtn:visible, #mobileLogout:visible').first().click(); }
+  // The front page comes first when signed out; Get started leads to the log-in screen.
+  async getStarted() { await this.page.getByRole('button', { name: 'Get started' }).click(); }
 
-  // Desktop sidebar or mobile tab bar, whichever is visible.
+  async openMenu() { await this.page.getByRole('button', { name: 'Account' }).click(); }
+  async signOut() { await this.openMenu(); await this.page.getByRole('menuitem', { name: 'Log out' }).click(); }
+
+  // Desktop top bar or mobile tab bar, whichever is visible.
   async nav(view) {
-    await this.page.locator(`.nav-item[data-view="${view}"]:visible, .tabbar button[data-view="${view}"]:visible`).first().click();
+    await this.page.locator(`.nav button[data-view="${view}"]:visible, .tabbar button[data-view="${view}"]:visible`).first().click();
     await expect(this.page.locator(`#view-${view}`)).toBeVisible();
   }
 
   row(merchant) { return this.page.locator('#txGroups .tx', { hasText: merchant }); }
-  kpi(label) { return this.page.locator('#kpis .kpi', { has: this.page.locator('.label', { hasText: label }) }).locator('.value'); }
+  get spent() { return this.page.locator('#totals .big'); }
+  stat(label) { return this.page.locator('#totals .stats > div', { has: this.page.locator('dt', { hasText: label }) }).locator('dd'); }
   budgetCard(category) { return this.page.locator(`.budget-card[data-cat="${category}"]`); }
 
   async fillTx({ type, amount, merchant, category, date, note }) {
-    if (type) await this.txDialog.getByRole('button', { name: type === 'income' ? 'Income' : 'Expense', exact: true }).click();
+    if (type) await this.txDialog.getByRole('button', { name: type === 'income' ? 'Income' : 'Spending', exact: true }).click();
     if (amount !== undefined) await this.page.locator('#fAmount').fill(String(amount));
     if (merchant !== undefined) await this.page.locator('#fMerchant').fill(merchant);
     if (category) await this.page.locator('#fCategory').selectOption(category);

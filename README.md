@@ -8,14 +8,17 @@ A high-fidelity spending tracker with real accounts. The Node/Express API stores
 ## Features
 
 - **Accounts**: sign up, sign in, and sign out. Passwords are hashed with bcrypt (cost 12). Sessions use an opaque token in an `HttpOnly`, `SameSite=Lax` cookie, and only its SHA-256 is stored in MySQL.
-- **Dashboard**: KPIs, spending pace vs. last month and budget, category donut, 6-month trend, and recent activity
-- **Transactions**: search, filters, add/edit/delete with undo, and CSV export
-- **Budgets**: per-category limits with status and month-end projection
+- **Front page**: welcome screen with a Get started button that leads to log in, or straight into the demo
+- **Log in / create account**: separate screens, with a repeat-password check on sign-up
+- **Overview**: switch between day, week, month, and year. Shows the period total, the change from the previous period, a category pie chart, and a ranking of categories or merchants
+- **History**: every entry in the selected period, with search, filters, add/edit/delete with undo, and CSV export
+- **Repeating entries**: log rent or a subscription once and choose how often it repeats and how many times. Future-dated entries show as upcoming and count only once their date arrives
+- **Budgets**: per-category monthly limits with status and month-end projection
 - **Safe updates**:
   - Every change is saved to MySQL before the UI updates.
   - Edits use optimistic concurrency (`version` column). If two tabs or devices edit the same transaction, the second save gets `409` and shows the latest copy instead of silently overwriting.
   - Every query is scoped to the signed-in user.
-- Light and dark themes, responsive layout, and the `n` keyboard shortcut for a new transaction
+- Violet, blue, and magenta theme with green for money in and red for money out; light and dark modes, responsive layout, and the `n` keyboard shortcut for a new entry
 
 ## Setup
 

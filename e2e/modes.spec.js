@@ -7,7 +7,8 @@ test('with the API unreachable the site runs in browser-only mode and keeps data
   await app.open();
   await expect(app.accountPanel).toContainText('Demo mode');
   await expect(app.authScreen).toBeHidden();
-  await expect(page.locator('#kpis')).not.toBeEmpty();
+  await app.getStarted(); // first visit shows the front page
+  await expect(page.locator('#totals')).not.toBeEmpty();
 
   await app.addTx({ amount: 3.21, merchant: 'Local Only Kiosk' });
   await app.reload();
@@ -18,7 +19,7 @@ test('with the API unreachable the site runs in browser-only mode and keeps data
 test.describe('mobile @mobile', () => {
   test('tab bar navigation and adding a transaction work on a phone', async ({ signedIn: app, page, account, db }) => {
     await expect(page.locator('.tabbar')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Account' })).toBeVisible();
 
     await app.nav('budgets');
     await expect(page.locator('#budgetGrid .budget-card').first()).toBeVisible();
