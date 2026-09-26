@@ -120,6 +120,13 @@
     <!-- BUDGETS -->
     <section class="view hidden" id="view-budgets">
       <div class="panel budget-hero" id="budgetHero"></div>
+      <div class="budget-toolbar">
+        <span class="muted small" id="budgetHint">Select any category to adjust its monthly limit</span>
+        <button type="button" class="ghost small" id="useDefaultBudgets">
+          <svg viewBox="0 0 24 24"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>
+          <span>Use default budgets</span>
+        </button>
+      </div>
       <div class="budget-grid" id="budgetGrid"></div>
     </section>
   </main>
@@ -205,7 +212,10 @@
         <span>$</span>
         <input id="bAmount" type="text" inputmode="numeric" autocomplete="off" maxlength="9" required aria-label="Monthly limit" />
       </label>
-      <p class="muted small">Monthly limit. Remove it (or set it to 0) to stop tracking this category.</p>
+      <div class="budget-dialog-hint">
+        <p class="muted small">Monthly limit. Remove it (or set it to 0) to stop tracking this category.</p>
+        <button type="button" class="ghost small hidden" id="bDefaultBtn">Use default ($<span id="bDefaultAmount"></span>)</button>
+      </div>
       <div class="dialog-actions">
         <button type="button" class="danger ghost hidden" id="removeBudget">Remove</button>
         <span class="spacer"></span>

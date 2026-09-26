@@ -100,6 +100,32 @@ router.delete('/transactions/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
+router.post('/budgets/default', async (req, res) => {
+  const pool = getPool();
+  await insertDefaultBudgets(pool, req.user.id);
+  res.json({ ok: true, budgets: await getBudgets(pool, req.user.id) });
+});
+
+router.put('/budgets', async (req, res) => {
+  const incoming = req.body?.budgets;
+  if (!incoming || typeof incoming !== 'object') throw new HttpError(400, 'Invalid budgets.');
+  const pool = getPool();
+  const rows = [];
+  for (const cat of EXPENSE_CATS) {
+    if (cat in incoming) {
+      const amount = Math.round(Number(incoming[cat]));
+      if (!Number.isFinite(amount) || amount < 0 || amount >= 1e10) throw new HttpError(400, 'Budget must be 0 or more.');
+      rows.push([req.user.id, cat, amount]);
+    }
+  }
+  if (rows.length) {
+    await pool.query(
+      'INSERT INTO budgets (user_id, category, amount) VALUES ? ON DUPLICATE KEY UPDATE amount = VALUES(amount)',
+      [rows]);
+  }
+  res.json({ ok: true, budgets: await getBudgets(pool, req.user.id) });
+});
+
 router.put('/budgets/:category', async (req, res) => {
   const cat = req.params.category;
   const amount = Math.round(Number(req.body?.amount));

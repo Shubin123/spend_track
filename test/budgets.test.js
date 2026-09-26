@@ -25,6 +25,25 @@ describe('budgets', { concurrency: true }, () => {
     assert.equal(b.housing, 0, 'other categories are untouched');
   });
 
+  it('sets default budgets with POST /api/budgets/default', async () => {
+    const { c } = await signedIn(ctx, { budgets: false });
+    assert.deepEqual(await budgets(c), Object.fromEntries(EXPENSE_CATS.map(k => [k, 0])));
+    const r = await c.post('/api/budgets/default', {});
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body.budgets, DEFAULT_BUDGETS);
+    assert.deepEqual(await budgets(c), DEFAULT_BUDGETS);
+  });
+
+  it('batch updates multiple budgets with PUT /api/budgets', async () => {
+    const { c } = await signedIn(ctx, { budgets: false });
+    const r = await c.put('/api/budgets', { budgets: { dining: 300, groceries: 500 } });
+    assert.equal(r.status, 200);
+    const b = await budgets(c);
+    assert.equal(b.dining, 300);
+    assert.equal(b.groceries, 500);
+    assert.equal(b.housing, 0);
+  });
+
   const invalid = [
     ['the income category', 'income', 100],
     ['an unknown category', 'crypto', 100],

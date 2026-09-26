@@ -47,6 +47,23 @@ test('budget edits persist and drive the over-budget status', async ({ signedIn:
   await expect(app.budgetCard('dining')).toContainText('of $50');
 });
 
+test('use default budgets populates standard limits and allows setting a budget', async ({ signedIn: app, page, account, db }) => {
+  await app.nav('budgets');
+  await page.locator('#useDefaultBudgets').click();
+  await expect(app.toast).toContainText('Default budgets applied');
+  await expect(app.budgetCard('dining')).toContainText('of $400');
+  await expect(app.budgetCard('housing')).toContainText('of $2,000');
+
+  // Individual card default shortcut
+  await app.budgetCard('dining').click();
+  await page.locator('#bAmount').fill('100');
+  await expect(page.locator('#bDefaultBtn')).toBeVisible();
+  await page.locator('#bDefaultBtn').click();
+  await expect(page.locator('#bAmount')).toHaveValue('400');
+  await page.locator('#budgetForm').getByRole('button', { name: 'Save' }).click();
+  await expect(app.toast).toHaveText('Dining budget set to $400');
+});
+
 test('reset asks first, and clears data only when confirmed', async ({ signedIn: app, page, account, db }) => {
   await db.createTx(account.id, { merchant: 'Keep Me' });
   await db.createTx(account.id, { type: 'income', category: 'income', amount: 1000 });

@@ -2,7 +2,7 @@
   'use strict';
 
   // ---------- Config ----------
-  const { CATEGORIES, EXPENSE_CATS } = window.SpendSeed;
+  const { CATEGORIES, EXPENSE_CATS, DEFAULT_BUDGETS } = window.SpendSeed;
   const STORE_KEY = 'spendtrack.v1';
   const LANDING_KEY = 'spendtrack.seenLanding';
   const MAX_REPEATS = 60;
@@ -188,6 +188,24 @@
       if (mode === 'api') await api('PUT', 'budgets/' + cat, { amount });
       state.budgets[cat] = amount;
       saveLocal();
+    },
+    async setDefaultBudgets() {
+      if (mode === 'api') {
+        const data = await api('POST', 'budgets/default', {});
+        state.budgets = data.budgets;
+      } else {
+        state.budgets = { ...DEFAULT_BUDGETS };
+        saveLocal();
+      }
+    },
+    async setBudgets(newBudgets) {
+      if (mode === 'api') {
+        const data = await api('PUT', 'budgets', { budgets: newBudgets });
+        state.budgets = data.budgets;
+      } else {
+        Object.assign(state.budgets, newBudgets);
+        saveLocal();
+      }
     },
     async reset() {
       if (mode === 'api') {
@@ -518,7 +536,10 @@
 
     const overCats = EXPENSE_CATS.filter(c => state.budgets[c] && (spentBy[c] || 0) > state.budgets[c]);
     let note, good;
-    if (mk === THIS_MONTH) {
+    if (!budget) {
+      good = true;
+      note = 'No budgets set yet. Choose a category below or click "Use default budgets".';
+    } else if (mk === THIS_MONTH) {
       good = projected <= budget;
       note = good
         ? `On track: projected ${money(projected, true)}, leaving ${money(budget - projected, true)} unspent.`
@@ -716,11 +737,27 @@
     if (!card) return;
     editingCat = card.dataset.cat;
     $('#bCatName').textContent = CATEGORIES[editingCat].name;
-    $('#bAmount').value = state.budgets[editingCat] || 0;
-    $('#removeBudget').classList.toggle('hidden', !state.budgets[editingCat]);
+    const cur = state.budgets[editingCat] || 0;
+    const def = DEFAULT_BUDGETS[editingCat] || 0;
+    $('#bAmount').value = cur;
+    $('#bDefaultAmount').textContent = def;
+    $('#bDefaultBtn').classList.toggle('hidden', cur === def);
+    $('#removeBudget').classList.toggle('hidden', !cur);
     budgetDialog.showModal();
     $('#bAmount').select();
   });
+  $('#bAmount').addEventListener('input', () => {
+    const def = DEFAULT_BUDGETS[editingCat] || 0;
+    const val = Math.max(0, Math.round(+$('#bAmount').value || 0));
+    $('#bDefaultBtn').classList.toggle('hidden', val === def);
+  });
+  $('#bDefaultBtn').onclick = () => {
+    const def = DEFAULT_BUDGETS[editingCat] || 0;
+    $('#bAmount').value = def;
+    $('#bDefaultBtn').classList.add('hidden');
+    $('#bAmount').focus();
+    $('#bAmount').select();
+  };
   $('#budgetForm').addEventListener('submit', async e => {
     e.preventDefault();
     const cat = editingCat, amount = Math.max(0, Math.round(+$('#bAmount').value || 0));
@@ -741,6 +778,18 @@
       render();
       toast(`Removed ${CATEGORIES[cat].name} budget`, { label: 'Undo', fn: async () => {
         try { await store.setBudget(cat, prev); render(); } catch (err) { if (err.status !== 401) toast(err.message); }
+      } });
+    } catch (err) {
+      if (err.status !== 401) toast(err.message);
+    }
+  };
+  $('#useDefaultBudgets').onclick = async () => {
+    const prev = { ...state.budgets };
+    try {
+      await store.setDefaultBudgets();
+      render();
+      toast('Default budgets applied', { label: 'Undo', fn: async () => {
+        try { await store.setBudgets(prev); render(); } catch (err) { if (err.status !== 401) toast(err.message); }
       } });
     } catch (err) {
       if (err.status !== 401) toast(err.message);

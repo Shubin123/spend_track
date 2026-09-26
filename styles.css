@@ -306,6 +306,9 @@ input:focus-visible, select:focus-visible { outline: none; }
 
 /* Budgets */
 .budget-hero { display: grid; grid-template-columns: auto 1fr; gap: 32px; align-items: center; margin-bottom: 20px; }
+.budget-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.budget-dialog-hint { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 4px 0 16px; flex-wrap: wrap; }
+.budget-dialog-hint p { margin: 0; flex: 1 1 200px; }
 .ring { width: 140px; height: 140px; position: relative; }
 .ring svg { width: 140px; height: 140px; transform: rotate(-90deg); }
 .ring .center { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
