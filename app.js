@@ -717,6 +717,7 @@
     editingCat = card.dataset.cat;
     $('#bCatName').textContent = CATEGORIES[editingCat].name;
     $('#bAmount').value = state.budgets[editingCat] || 0;
+    $('#removeBudget').classList.toggle('hidden', !state.budgets[editingCat]);
     budgetDialog.showModal();
     $('#bAmount').select();
   });
@@ -732,6 +733,19 @@
       if (err.status !== 401) toast(err.message);
     }
   });
+  $('#removeBudget').onclick = async () => {
+    const cat = editingCat, prev = state.budgets[cat];
+    try {
+      await store.setBudget(cat, 0);
+      budgetDialog.close();
+      render();
+      toast(`Removed ${CATEGORIES[cat].name} budget`, { label: 'Undo', fn: async () => {
+        try { await store.setBudget(cat, prev); render(); } catch (err) { if (err.status !== 401) toast(err.message); }
+      } });
+    } catch (err) {
+      if (err.status !== 401) toast(err.message);
+    }
+  };
   $('#cancelBudget').onclick = () => budgetDialog.close();
   [txDialog, budgetDialog].forEach(d => d.addEventListener('click', e => { if (e.target === d) d.close(); }));
 

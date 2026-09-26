@@ -82,8 +82,10 @@ router.post('/signup', limiter, async (req, res) => {
     const user = await withTransaction(async conn => {
       const [r] = await conn.query('INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)', [email, name, hash]);
       const id = r.insertId;
-      await insertDefaultBudgets(conn, id);
-      if (sample) await insertSampleData(conn, id);
+      if (sample) {
+        await insertDefaultBudgets(conn, id);
+        await insertSampleData(conn, id);
+      }
       const token = await createSession(conn, id);
       return { id, name, email, token };
     });

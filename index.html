@@ -205,8 +205,9 @@
         <span>$</span>
         <input id="bAmount" type="text" inputmode="numeric" autocomplete="off" maxlength="9" required aria-label="Monthly limit" />
       </label>
-      <p class="muted small">Monthly limit. Set to 0 to stop tracking this category.</p>
+      <p class="muted small">Monthly limit. Remove it (or set it to 0) to stop tracking this category.</p>
       <div class="dialog-actions">
+        <button type="button" class="danger ghost hidden" id="removeBudget">Remove</button>
         <span class="spacer"></span>
         <button type="button" class="ghost" id="cancelBudget">Cancel</button>
         <button type="submit" class="primary">Save budget</button>

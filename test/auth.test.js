@@ -4,7 +4,7 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const f = require('./support/factory');
 const { useServer, client, signedIn } = require('./support/http');
-const { DEFAULT_BUDGETS } = require('../seed');
+const { DEFAULT_BUDGETS, EXPENSE_CATS } = require('../seed');
 
 const ctx = useServer();
 const signupBody = (over = {}) => ({ name: 'Ada Lovelace', email: f.track(f.uniqueEmail()), password: f.PASSWORD, sample: false, ...over });
@@ -36,16 +36,18 @@ describe('sign up', { concurrency: true }, () => {
     assert.equal(await f.row('SELECT 1 FROM sessions WHERE token_hash = ?', [token]), undefined);
   });
 
-  it('starts with default budgets, and sample data only when asked', async () => {
+  it('starts empty, with default budgets and sample data only when asked', async () => {
     const empty = client(ctx);
     await empty.post('/api/auth/signup', signupBody({ sample: false }));
     const d1 = (await empty.get('/api/data')).body;
     assert.deepEqual(d1.transactions, []);
-    assert.deepEqual(d1.budgets, DEFAULT_BUDGETS);
+    assert.deepEqual(d1.budgets, Object.fromEntries(EXPENSE_CATS.map(k => [k, 0])));
 
     const withSample = client(ctx);
     await withSample.post('/api/auth/signup', signupBody({ sample: true }));
-    assert.ok((await withSample.get('/api/data')).body.transactions.length > 50);
+    const d2 = (await withSample.get('/api/data')).body;
+    assert.ok(d2.transactions.length > 50);
+    assert.deepEqual(d2.budgets, DEFAULT_BUDGETS);
   });
 
   it('normalises email case and whitespace', async () => {

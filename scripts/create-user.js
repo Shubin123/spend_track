@@ -24,8 +24,10 @@ async function main() {
       return false;
     }
     const [r] = await conn.query('INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)', [email, name, hash]);
-    await insertDefaultBudgets(conn, r.insertId);
-    if (sample) await insertSampleData(conn, r.insertId);
+    if (sample) {
+      await insertDefaultBudgets(conn, r.insertId);
+      await insertSampleData(conn, r.insertId);
+    }
     return true;
   });
   console.log(created ? `  ✓ created ${email}${sample ? ' with sample data' : ''}` : `  ✓ ${email} already existed; password updated`);
