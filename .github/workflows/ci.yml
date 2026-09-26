@@ -128,7 +128,10 @@ jobs:
       - name: HTTPS works and the app is no longer exposed directly
         run: |
           set -x
+          # Caddy issues the localhost certificate asynchronously at startup.
+          for i in $(seq 40); do curl -fsk -o /dev/null https://localhost/api/health && break; sleep 0.5; done
           curl -fsSk https://localhost/api/health
+          curl -fsSk -o /dev/null -D - https://localhost/ | grep -i strict-transport-security
           ! curl -fsS --max-time 3 "http://$(hostname -I | awk '{print $1}'):3000/api/health"
           sudo NODE_TLS_REJECT_UNAUTHORIZED=0 SPEND_TRACK_ENV_FILE=/etc/spend_track/.env /usr/bin/node scripts/smoke.js https://localhost
       - name: Logs

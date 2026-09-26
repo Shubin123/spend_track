@@ -127,7 +127,7 @@ systemctl enable --quiet "$SERVICE"
 systemctl restart "$SERVICE"
 healthy=n
 for _ in $(seq 60); do
-  if curl -fsS -o /dev/null "http://127.0.0.1:$PORT/api/health"; then healthy=y; break; fi
+  if curl -fs -o /dev/null "http://127.0.0.1:$PORT/api/health"; then healthy=y; break; fi
   sleep 0.5
 done
 if [[ $healthy != y ]]; then
@@ -146,8 +146,17 @@ if [[ -n "$DOMAIN" ]]; then
   sed -e "s|__DOMAIN__|$DOMAIN|g" -e "s|__PORT__|$PORT|g" "$APP_DIR/deploy/Caddyfile.template" > /etc/caddy/Caddyfile
   caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 || die "Generated Caddyfile is invalid."
   systemctl enable --quiet caddy
-  systemctl reload caddy 2>/dev/null || systemctl restart caddy
-  ok "Caddy serving https://$DOMAIN (certificate is issued on first request; DNS must point here)"
+  systemctl restart caddy
+  listening=n
+  for _ in $(seq 30); do
+    if systemctl is-active --quiet caddy && ss -ltn | grep -q ':443 '; then listening=y; break; fi
+    sleep 0.5
+  done
+  if [[ $listening != y ]]; then
+    journalctl -u caddy -n 30 --no-pager >&2 || true
+    die "Caddy is not running or not listening on 443 (logs above)."
+  fi
+  ok "Caddy listening on 443 for https://$DOMAIN (certificate is issued on first request; DNS must point here)"
 else
   warn "No DOMAIN: serving plain HTTP on port $PORT. Fine for testing; for real use re-run with DOMAIN=your.host"
 fi

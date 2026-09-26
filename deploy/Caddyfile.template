@@ -10,7 +10,8 @@ __DOMAIN__ {
 		Strict-Transport-Security "max-age=31536000"
 		-Server
 	}
+	# Access log to journald: journalctl -u caddy
 	log {
-		output file /var/log/caddy/spend_track.log
+		output stdout
 	}
 }
