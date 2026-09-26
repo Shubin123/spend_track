@@ -237,7 +237,6 @@
   };
   const totalBudget = () => sum(EXPENSE_CATS.map(c => state.budgets[c] || 0));
   // Days of the month that have elapsed (full month for past months).
-  const elapsedDays = mk => mk === THIS_MONTH ? today.getDate() : (mk < THIS_MONTH ? daysIn(mk) : 0);
   const earliestDate = () => state.txs.reduce((m, t) => t.date < m ? t.date : m, TODAY);
   const latestDate = () => state.txs.reduce((m, t) => t.date > m ? t.date : m, TODAY);
   // Budgets are monthly, so that view always steps by month.
@@ -526,11 +525,9 @@
   function renderBudgets() {
     const mk = state.anchor.slice(0, 7);
     const spentBy = sumBy(expenses(inRange(rangeOf('month', state.anchor)).filter(posted)), 'category');
-    const elapsed = elapsedDays(mk), dim = daysIn(mk);
     const budget = totalBudget();
     const spent = sum(EXPENSE_CATS.map(c => spentBy[c] || 0));
     const pct = budget ? spent / budget : 0;
-    const projected = mk === THIS_MONTH && elapsed ? spent / elapsed * dim : spent;
     const circ = 2 * Math.PI * 58;
     const ringColor = pct > 1 ? 'var(--loss)' : pct > 0.85 ? 'var(--warn)' : 'var(--primary)';
 
@@ -540,10 +537,10 @@
       good = true;
       note = 'No budgets set yet. Choose a category below or click "Use default budgets".';
     } else if (mk === THIS_MONTH) {
-      good = projected <= budget;
-      note = good
-        ? `On track: projected ${money(projected, true)}, leaving ${money(budget - projected, true)} unspent.`
-        : `At this pace you'll spend ${money(projected, true)}, which is ${money(projected - budget, true)} over budget.`;
+      good = spent <= budget;
+      const n = overCats.length;
+      note = (good ? `${money(budget - spent, true)} left to spend this month.` : `You’re ${money(spent - budget, true)} over budget this month.`)
+        + (n ? ` ${n} ${n === 1 ? 'category is' : 'categories are'} over ${n === 1 ? 'its' : 'their'} limit.` : '');
     } else if (mk > THIS_MONTH) {
       good = true;
       note = 'This month hasn’t started yet.';
@@ -562,27 +559,44 @@
       <div class="hero-stats">
         <div><div class="label">Spent</div><div class="v">${money(spent, true)}</div></div>
         <div><div class="label">Budget</div><div class="v">${money(budget, true)}</div></div>
-        <div><div class="label">${mk === THIS_MONTH ? 'Projected' : 'Categories over'}</div>
-          <div class="v ${mk === THIS_MONTH ? (projected > budget ? 'loss' : 'gain') : overCats.length ? 'loss' : ''}">${mk === THIS_MONTH ? money(projected, true) : overCats.length}</div></div>
+        <div><div class="label">Over budget</div>
+          <div class="v ${spent > budget ? 'loss' : ''}">${money(Math.max(0, spent - budget), true)}</div></div>
         <div class="hero-note ${good ? 'gain' : 'loss'}">${note}</div>
       </div>`;
 
     $('#budgetGrid').innerHTML = EXPENSE_CATS.map(cat => {
       const c = CATEGORIES[cat], b = state.budgets[cat] || 0, s = spentBy[cat] || 0;
       const p = b ? s / b : 0;
-      const proj = mk === THIS_MONTH && elapsed ? s / elapsed * dim : s;
       let status;
       if (!b) status = `<span class="status">No budget</span>`;
       else if (s > b) status = `<span class="status loss">Over</span>`;
-      else if (mk === THIS_MONTH && proj > b * 1.02 && cat !== 'housing') status = `<span class="status warn">At risk</span>`;
+      else if (p > 0.85) status = `<span class="status warn">Near limit</span>`;
       else status = `<span class="status gain">On track</span>`;
-      return `<button class="panel budget-card" data-cat="${cat}" aria-label="Edit ${c.name} budget">
-        <div class="top">${catIcon(cat)}<div class="name">${c.name}</div>${status}</div>
-        <div class="amounts"><b>${money(s, true)}</b><span class="muted">of ${money(b, true)}</span></div>
+      // Clicking the card edits the limit in place; the pencil opens the dialog with more options.
+      const editing = cat === inlineCat;
+      const limitForm = `<form class="limit-form" novalidate><label for="inlineBudget" class="muted">Limit $</label>
+            <input id="inlineBudget" type="text" inputmode="numeric" autocomplete="off" maxlength="9" value="${b}" aria-label="${c.name} monthly limit" />
+            <button type="submit" class="icon-btn" aria-label="Save ${c.name} limit"><svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg></button>
+            <button type="button" class="icon-btn limit-cancel" aria-label="Cancel"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+          </form>`;
+      const limit = editing
+        ? `<span class="muted">of ${money(b, true)}</span>`
+        : `<button type="button" class="limit muted" aria-label="Change ${c.name} limit, now ${money(b, true)}">of ${money(b, true)}</button>`;
+      return `<div class="panel budget-card${editing ? ' editing' : ''}" data-cat="${cat}">
+        <div class="top">${catIcon(cat)}<div class="title"><div class="name">${c.name}</div>${status}</div>
+          <button type="button" class="icon-btn edit-budget" aria-label="Edit ${c.name} budget"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M14 6l4 4"/></svg></button></div>
+        <div class="amounts"><b>${money(s, true)}</b>${limit}</div>
+        ${editing ? limitForm : ''}
         <div class="meter ${p > 1 ? 'over' : p > 0.85 ? 'warn' : ''}"><i style="width:${Math.min(p, 1) * 100}%;${p <= .85 ? `background:${catColor(cat)}` : ''}"></i></div>
-        <div class="foot"><span>${b ? (s <= b ? `${money(b - s, true)} left` : `${money(s - b, true)} over`) : 'Select to set a limit'}</span><span>${(p * 100).toFixed(0)}%</span></div>
-      </button>`;
+        <div class="foot"><span>${b ? (s <= b ? `${money(b - s, true)} left` : `${money(s - b, true)} over`) : 'Click to set a limit'}</span><span>${(p * 100).toFixed(0)}%</span></div>
+      </div>`;
     }).join('');
+    if (inlineCat) {
+      const input = $('#inlineBudget');
+      digitsOnly(input, 0);
+      input.focus();
+      input.select();
+    }
   }
 
   // ---------- Add / edit dialog ----------
@@ -730,22 +744,95 @@
   digitsOnly($('#bAmount'), 0);
   ['#fRepeat', '#fEvery', '#fUnit', '#fReps', '#fDate', '#fAmount'].forEach(s => $(s).addEventListener('input', updateRepeat));
 
-  const budgetDialog = $('#budgetDialog');
-  let editingCat = null;
-  $('#budgetGrid').addEventListener('click', e => {
+  // Asks before a change is saved. Resolves true only when the confirm button is pressed;
+  // Cancel, Escape, and a click outside all resolve false.
+  const confirmDialog = $('#confirmDialog');
+  function confirmChange({ title, text, ok }) {
+    $('#confirmTitle').textContent = title;
+    $('#confirmText').textContent = text;
+    $('#confirmOk').textContent = ok;
+    confirmDialog.returnValue = '';
+    confirmDialog.showModal();
+    $('#confirmOk').focus();
+    return new Promise(resolve => confirmDialog.addEventListener('close', () => resolve(confirmDialog.returnValue === 'ok'), { once: true }));
+  }
+
+  // Saves one category's monthly limit after the user confirms. Returns true when the limit
+  // now matches `amount` (including when it already did).
+  async function saveBudget(cat, amount) {
+    const name = CATEGORIES[cat].name, from = state.budgets[cat] || 0;
+    if (amount === from) {
+      toast(`${name} budget set to ${money(amount, true)}`);
+      return true;
+    }
+    const ask = !amount
+      ? { title: `Remove the ${name} budget?`, text: `Its ${money(from, true)} monthly limit will be removed and ${name} won’t be tracked.`, ok: 'Remove budget' }
+      : !from
+        ? { title: `Set a ${name} budget?`, text: `${name} will have a ${money(amount, true)} monthly limit.`, ok: 'Set budget' }
+        : { title: `Change the ${name} budget?`, text: `From ${money(from, true)} to ${money(amount, true)} a month.`, ok: 'Change budget' };
+    if (!await confirmChange(ask)) return false;
+    try {
+      await store.setBudget(cat, amount);
+    } catch (err) {
+      if (err.status !== 401) toast(err.message);
+      return false;
+    }
+    if (amount) toast(`${name} budget set to ${money(amount, true)}`);
+    else toast(`Removed ${name} budget`, { label: 'Undo', fn: async () => {
+      try { await store.setBudget(cat, from); render(); } catch (err) { if (err.status !== 401) toast(err.message); }
+    } });
+    return true;
+  }
+
+  // In-place editing on a budget card.
+  let inlineCat = null;
+  const editInline = cat => { inlineCat = cat; renderBudgets(); };
+  const stopInline = () => {
+    const cat = inlineCat;
+    inlineCat = null;
+    renderBudgets();
+    $(`.budget-card[data-cat="${cat}"] .limit`)?.focus();
+  };
+  const budgetGrid = $('#budgetGrid');
+  budgetGrid.addEventListener('click', e => {
     const card = e.target.closest('.budget-card');
     if (!card) return;
-    editingCat = card.dataset.cat;
-    $('#bCatName').textContent = CATEGORIES[editingCat].name;
-    const cur = state.budgets[editingCat] || 0;
-    const def = DEFAULT_BUDGETS[editingCat] || 0;
+    if (e.target.closest('.limit-cancel')) return stopInline();
+    if (e.target.closest('.limit-form')) return;
+    if (e.target.closest('.edit-budget')) return openBudgetDialog(card.dataset.cat);
+    editInline(card.dataset.cat);
+  });
+  budgetGrid.addEventListener('submit', async e => {
+    e.preventDefault();
+    const cat = inlineCat, input = $('#inlineBudget');
+    if (await saveBudget(cat, Math.max(0, Math.round(+input.value || 0)))) {
+      inlineCat = null;
+      render();
+    } else {
+      input.focus();
+      input.select();
+    }
+  });
+  budgetGrid.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && e.target.id === 'inlineBudget') { e.preventDefault(); stopInline(); }
+  });
+
+  // The dialog behind the pencil button: limit, default shortcut, and remove.
+  const budgetDialog = $('#budgetDialog');
+  let editingCat = null;
+  function openBudgetDialog(cat) {
+    inlineCat = null;
+    editingCat = cat;
+    $('#bCatName').textContent = CATEGORIES[cat].name;
+    const cur = state.budgets[cat] || 0;
+    const def = DEFAULT_BUDGETS[cat] || 0;
     $('#bAmount').value = cur;
     $('#bDefaultAmount').textContent = def;
     $('#bDefaultBtn').classList.toggle('hidden', cur === def);
     $('#removeBudget').classList.toggle('hidden', !cur);
     budgetDialog.showModal();
     $('#bAmount').select();
-  });
+  }
   $('#bAmount').addEventListener('input', () => {
     const def = DEFAULT_BUDGETS[editingCat] || 0;
     const val = Math.max(0, Math.round(+$('#bAmount').value || 0));
@@ -760,32 +847,27 @@
   };
   $('#budgetForm').addEventListener('submit', async e => {
     e.preventDefault();
-    const cat = editingCat, amount = Math.max(0, Math.round(+$('#bAmount').value || 0));
-    try {
-      await store.setBudget(cat, amount);
+    if (await saveBudget(editingCat, Math.max(0, Math.round(+$('#bAmount').value || 0)))) {
       budgetDialog.close();
       render();
-      toast(`${CATEGORIES[cat].name} budget set to ${money(amount, true)}`);
-    } catch (err) {
-      if (err.status !== 401) toast(err.message);
     }
   });
   $('#removeBudget').onclick = async () => {
-    const cat = editingCat, prev = state.budgets[cat];
-    try {
-      await store.setBudget(cat, 0);
+    if (await saveBudget(editingCat, 0)) {
       budgetDialog.close();
       render();
-      toast(`Removed ${CATEGORIES[cat].name} budget`, { label: 'Undo', fn: async () => {
-        try { await store.setBudget(cat, prev); render(); } catch (err) { if (err.status !== 401) toast(err.message); }
-      } });
-    } catch (err) {
-      if (err.status !== 401) toast(err.message);
     }
   };
   $('#useDefaultBudgets').onclick = async () => {
+    const ok = await confirmChange({
+      title: 'Use default budgets?',
+      text: 'Every category’s monthly limit will be replaced with its default. You can undo this right after.',
+      ok: 'Use defaults',
+    });
+    if (!ok) return;
     const prev = { ...state.budgets };
     try {
+      inlineCat = null;
       await store.setDefaultBudgets();
       render();
       toast('Default budgets applied', { label: 'Undo', fn: async () => {
@@ -796,10 +878,10 @@
     }
   };
   $('#cancelBudget').onclick = () => budgetDialog.close();
-  [txDialog, budgetDialog].forEach(d => d.addEventListener('click', e => { if (e.target === d) d.close(); }));
+  [txDialog, budgetDialog, confirmDialog].forEach(d => d.addEventListener('click', e => { if (e.target === d) d.close(); }));
 
   // ---------- Wiring ----------
-  $$('[data-view]').forEach(b => b.onclick = () => { state.view = b.dataset.view; render(); window.scrollTo(0, 0); });
+  $$('[data-view]').forEach(b => b.onclick = () => { state.view = b.dataset.view; inlineCat = null; render(); window.scrollTo(0, 0); });
   $$('#periodSeg button').forEach(b => b.onclick = () => { state.period = b.dataset.period; render(); });
   const step = n => {
     const next = shiftDate(curPeriod(), state.anchor, n);
@@ -865,7 +947,7 @@
 
   const overlayOpen = () => !$('#auth').classList.contains('hidden') || !$('#landing').classList.contains('hidden');
   document.addEventListener('keydown', e => {
-    if (e.key === 'n' && !e.metaKey && !e.ctrlKey && !overlayOpen() && !txDialog.open && !budgetDialog.open && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) {
+    if (e.key === 'n' && !e.metaKey && !e.ctrlKey && !overlayOpen() && !txDialog.open && !budgetDialog.open && !confirmDialog.open && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) {
       e.preventDefault(); openTx(null);
     }
   });
@@ -897,7 +979,7 @@
   function showAuth(message) {
     user = null;
     state.txs = [];
-    [txDialog, budgetDialog].forEach(d => d.open && d.close());
+    [confirmDialog, txDialog, budgetDialog].forEach(d => d.open && d.close());
     setMenu(false);
     renderAccount();
     setAuthMode(authMode);

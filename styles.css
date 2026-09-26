@@ -322,10 +322,26 @@ input:focus-visible, select:focus-visible { outline: none; }
 .hero-note.loss { background: var(--loss-soft); }
 .budget-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; }
 .budget-card { display: block; width: 100%; text-align: left; padding: 20px; border-radius: 16px; }
-.budget-card:hover { border-color: var(--accent-text); }
+.budget-card { cursor: pointer; }
+.budget-card:hover, .budget-card.editing { border-color: var(--accent-text); }
+.budget-card .edit-budget { width: 30px; height: 30px; margin: -4px -6px 0 0; align-self: flex-start; }
+.budget-card .edit-budget svg { width: 16px; height: 16px; }
+.budget-card .limit {
+  color: var(--muted); padding: 2px 4px; margin-right: -4px; border-radius: 6px;
+  text-decoration: underline dotted; text-underline-offset: 3px;
+}
+.budget-card .limit:hover { color: var(--ink); background: var(--sunk); }
+.limit-form { display: flex; align-items: center; gap: 4px; margin: 10px 0 2px; }
+.limit-form label { font-size: 13px; white-space: nowrap; margin-right: 2px; }
+.limit-form input { flex: 1; min-width: 0; padding: 6px 10px; font-weight: 600; }
+.limit-form .icon-btn { width: 30px; height: 30px; }
+.limit-form .icon-btn svg { width: 16px; height: 16px; }
+dialog.confirm { width: min(400px, calc(100vw - 32px)); }
+dialog.confirm p { margin: -8px 0 20px; }
 .budget-card .top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-.budget-card .name { font-weight: 600; }
-.budget-card .status { margin-left: auto; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--sunk); color: var(--muted); }
+.budget-card .title { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.budget-card .name { font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.2; }
+.budget-card .status { white-space: nowrap; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--sunk); color: var(--muted); }
 .budget-card .status.gain { background: var(--gain-soft); color: var(--gain); }
 .budget-card .status.loss { background: var(--loss-soft); color: var(--loss); }
 .budget-card .status.warn { color: var(--warn); }

@@ -121,7 +121,7 @@
     <section class="view hidden" id="view-budgets">
       <div class="panel budget-hero" id="budgetHero"></div>
       <div class="budget-toolbar">
-        <span class="muted small" id="budgetHint">Select any category to adjust its monthly limit</span>
+        <span class="muted small" id="budgetHint">Click a category to change its monthly limit</span>
         <button type="button" class="ghost small" id="useDefaultBudgets">
           <svg viewBox="0 0 24 24"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>
           <span>Use default budgets</span>
@@ -221,6 +221,19 @@
         <span class="spacer"></span>
         <button type="button" class="ghost" id="cancelBudget">Cancel</button>
         <button type="submit" class="primary">Save budget</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Confirm a change before it is saved -->
+  <dialog id="confirmDialog" class="confirm" aria-labelledby="confirmTitle" aria-describedby="confirmText">
+    <form method="dialog">
+      <h3 id="confirmTitle"></h3>
+      <p class="muted" id="confirmText"></p>
+      <div class="dialog-actions">
+        <span class="spacer"></span>
+        <button type="submit" class="ghost" value="cancel">Cancel</button>
+        <button type="submit" class="primary" value="ok" id="confirmOk">Confirm</button>
       </div>
     </form>
   </dialog>

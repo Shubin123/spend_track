@@ -34,9 +34,20 @@ test('budget edits persist and drive the over-budget status', async ({ signedIn:
   await app.nav('budgets');
   await expect(app.budgetCard('dining')).toContainText('On track');
 
+  const before = (await db.row('SELECT amount FROM budgets WHERE user_id = ? AND category = ?', [account.id, 'dining'])).amount;
+  const limit = page.getByLabel('Dining monthly limit');
+
+  // Clicking the card edits the limit in place, and nothing is saved until the change is confirmed.
   await app.budgetCard('dining').click();
-  await page.locator('#bAmount').fill('50');
-  await page.locator('#budgetForm').getByRole('button', { name: 'Save' }).click();
+  await limit.fill('50');
+  await limit.press('Enter');
+  await expect(page.locator('#confirmDialog')).toContainText('to $50 a month');
+  await page.locator('#confirmDialog').getByRole('button', { name: 'Cancel' }).click();
+  await expect(limit).toBeVisible();
+  expect((await db.row('SELECT amount FROM budgets WHERE user_id = ? AND category = ?', [account.id, 'dining'])).amount).toBe(before);
+
+  await limit.press('Enter');
+  await page.getByRole('button', { name: 'Change budget' }).click();
   await expect(app.toast).toHaveText('Dining budget set to $50');
   await expect(app.budgetCard('dining')).toContainText('Over');
   await expect(app.budgetCard('dining')).toContainText('$5 over');
@@ -50,12 +61,13 @@ test('budget edits persist and drive the over-budget status', async ({ signedIn:
 test('use default budgets populates standard limits and allows setting a budget', async ({ signedIn: app, page, account, db }) => {
   await app.nav('budgets');
   await page.locator('#useDefaultBudgets').click();
+  await page.getByRole('button', { name: 'Use defaults' }).click();
   await expect(app.toast).toContainText('Default budgets applied');
   await expect(app.budgetCard('dining')).toContainText('of $400');
   await expect(app.budgetCard('housing')).toContainText('of $2,000');
 
-  // Individual card default shortcut
-  await app.budgetCard('dining').click();
+  // Individual card default shortcut, in the dialog behind the pencil button
+  await page.getByRole('button', { name: 'Edit Dining budget' }).click();
   await page.locator('#bAmount').fill('100');
   await expect(page.locator('#bDefaultBtn')).toBeVisible();
   await page.locator('#bDefaultBtn').click();

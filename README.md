@@ -13,7 +13,7 @@ A high-fidelity spending tracker with real accounts. The Node/Express API stores
 - **Overview**: switch between day, week, month, and year. Shows the period total, the change from the previous period, a category pie chart, and a ranking of categories or merchants
 - **History**: every entry in the selected period, with search, filters, add/edit/delete with undo, and CSV export
 - **Repeating entries**: log rent or a subscription once and choose how often it repeats and how many times. Future-dated entries show as upcoming and count only once their date arrives
-- **Budgets**: per-category monthly limits with status and month-end projection
+- **Budgets**: per-category monthly limits with status and how much you are over; click a card to change its limit (or use the pencil for defaults and removal), and every change asks for confirmation first
 - **Safe updates**:
   - Every change is saved to MySQL before the UI updates.
   - Edits use optimistic concurrency (`version` column). If two tabs or devices edit the same transaction, the second save gets `409` and shows the latest copy instead of silently overwriting.
