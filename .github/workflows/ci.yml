@@ -28,7 +28,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Syntax check
-        run: for f in app.js seed.js api-config.js playwright.config.js server/*.js scripts/*.js test/*.js e2e/*.js; do node --check "$f"; done
+        run: for f in app.js seed.js api-config.js playwright.config.js server/*.js scripts/*.js test/*.js test/support/*.js e2e/*.js e2e/support/*.js; do node --check "$f"; done
       - name: Shell script lint
         run: for f in scripts/*.sh; do bash -n "$f"; done
       - name: No env files committed

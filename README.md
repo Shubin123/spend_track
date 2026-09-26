@@ -87,15 +87,23 @@ To change the schema, **add a new numbered file**. Don't edit an applied migrati
 
 ## Testing
 
-| Command | What it checks |
-| --- | --- |
-| `npm test` | API integration tests (`node:test`) against the configured DB |
-| `npm run smoke [-- <url>] [--origin https://shubin123.github.io]` | Every API endpoint against a **running** server, in about 5 s. With `--origin` it runs as the Pages site using a bearer token. |
-| `npm run e2e` | Playwright browser tests: sign-up, add/edit/delete/undo, filters, budgets, sign-out, user isolation, offline fallback, mobile. Starts the server if it isn't running. |
-| `E2E_BASE_URL=https://shubin123.github.io/spend_track/ npm run e2e` | The same browser tests against the live GitHub Pages site through the tunnel |
-| `npm run test:all` | `test`, `smoke`, and `e2e` in sequence (server must be running for smoke) |
+Three layers, each with one job:
 
-All of them create throwaway accounts (`*@example.test`) and delete them afterwards. First-time e2e needs a browser: `npx playwright install chromium`.
+| Layer | Command | What it proves | Speed |
+| --- | --- | --- | --- |
+| **Integration** | `npm test` | Every API rule against a real MySQL: auth and sessions, validation boundaries, optimistic concurrency, per-user isolation, CSRF/CORS/bearer tokens, rate limiting, headers, and which files are served | ~83 tests in ~10 s |
+| **E2E** | `npm run e2e` | Real user journeys in Chromium (desktop and mobile), with each result checked against what MySQL stored: sign-up/in/out, add/edit/delete/undo, conflict handling, failed saves, filters, months, CSV export, KPIs, budgets, reset, theme, offline fallback | ~22 tests in ~15 s |
+| **Smoke** | `npm run smoke` | A deployment is alive and its critical path works. Non-destructive, stops at the first failure, reports timings | ~3 s |
+
+Against the live GitHub Pages site (through the tunnel): `npm run smoke:pages` checks the whole chain (Pages → `api-config.js` → tunnel → API → MySQL), and `npm run e2e:pages` runs the browser suite there.
+
+How the tests stay fast and reliable:
+- **Test-data factory** (`test/support/factory.js`, shared by integration and e2e). It creates users, sessions and transactions directly in MySQL, so each test sets up exactly the state it needs in milliseconds, and only the auth tests go through sign-up. Everything it creates is deleted afterwards; test accounts use `*@example.test`.
+- **Parallel by default.** Every test has its own account and its own client IP (`X-Forwarded-For`, trusted only from loopback), so tests and the per-IP sign-in rate limit never interfere.
+- **No sleeps.** E2E waits on web-first assertions and on `<html data-state="ready">`, which the app sets when boot finishes. Timing-sensitive tests use Playwright's fake clock (`test.use({ fakeClock: true })`).
+- **Checked against the database.** E2E tests confirm what MySQL stored, not just what the screen shows.
+
+Smoke options: `npm run smoke -- <url>` for any server. Set `SMOKE_EMAIL`/`SMOKE_PASSWORD` to use a fixed account (no DB access needed); otherwise a throwaway account is created and removed. First-time e2e needs a browser: `npx playwright install chromium`. All three need the DB config from `npm run setup`.
 
 ## Scripts
 

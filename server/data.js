@@ -67,8 +67,8 @@ router.post('/transactions', async (req, res) => {
   const [r] = await pool.query(
     'INSERT INTO transactions (user_id, tx_date, merchant, category, type, amount, note) VALUES (?, ?, ?, ?, ?, ?, ?)',
     [req.user.id, t.date, t.merchant, t.category, t.type, t.amount, t.note]);
-  const [rows] = await pool.query(`SELECT ${TX_COLS} FROM transactions WHERE id = ?`, [r.insertId]);
-  res.status(201).json({ transaction: toTx(rows[0]) });
+  // Built from the validated values rather than re-read, which could race with a reset.
+  res.status(201).json({ transaction: { id: String(r.insertId), ...t, version: 1 } });
 });
 
 // Optimistic concurrency: the client sends the version it last saw. If someone else
@@ -108,12 +108,15 @@ router.put('/budgets/:category', async (req, res) => {
 });
 
 // Replace this user's data with fresh sample data (the "Reset demo" button).
+// READ COMMITTED avoids the gap locks that make this bulk delete + insert deadlock with
+// other users' writes; locking the user row serialises two resets of the same account.
 router.post('/reset', async (req, res) => {
   await withTransaction(async conn => {
+    await conn.query('SELECT id FROM users WHERE id = ? FOR UPDATE', [req.user.id]);
     await conn.query('DELETE FROM transactions WHERE user_id = ?', [req.user.id]);
     await insertDefaultBudgets(conn, req.user.id);
     await insertSampleData(conn, req.user.id);
-  });
+  }, { isolation: 'READ COMMITTED' });
   res.json({ ok: true });
 });
 

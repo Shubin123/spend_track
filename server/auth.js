@@ -20,19 +20,24 @@ function readCookie(req, name) {
   const header = req.headers.cookie || '';
   for (const part of header.split(';')) {
     const i = part.indexOf('=');
-    if (i > 0 && part.slice(0, i).trim() === name) return decodeURIComponent(part.slice(i + 1).trim());
+    if (i > 0 && part.slice(0, i).trim() === name) {
+      try { return decodeURIComponent(part.slice(i + 1).trim()); } catch { return null; } // malformed %-encoding
+    }
   }
   return null;
 }
 
-async function createSession(conn, res, userId) {
+const SESSION_MS = sessionDays * 86400 * 1000;
+
+async function createSession(conn, userId) {
   const token = crypto.randomBytes(32).toString('base64url');
-  const maxAge = sessionDays * 86400 * 1000;
   await conn.query('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)',
-    [sha256(token), userId, new Date(Date.now() + maxAge)]);
-  res.cookie(COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: production, path: '/', maxAge });
+    [sha256(token), userId, new Date(Date.now() + SESSION_MS)]);
   return token;
 }
+
+const setSessionCookie = (res, token) =>
+  res.cookie(COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: production, path: '/', maxAge: SESSION_MS });
 
 // Same-origin requests use the HttpOnly cookie. Allowlisted cross-origin requests use
 // "Authorization: Bearer <token>" only; browsers never attach that header on their own.
@@ -79,9 +84,10 @@ router.post('/signup', limiter, async (req, res) => {
       const id = r.insertId;
       await insertDefaultBudgets(conn, id);
       if (sample) await insertSampleData(conn, id);
-      const token = await createSession(conn, res, id);
+      const token = await createSession(conn, id);
       return { id, name, email, token };
     });
+    setSessionCookie(res, user.token); // after commit: the transaction may be retried
     res.status(201).json({ user: publicUser(user), ...(req.crossOrigin && { token: user.token }) });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'An account with that email already exists.' });
@@ -97,7 +103,8 @@ router.post('/login', limiter, async (req, res) => {
   const ok = await bcrypt.compare(password, user ? user.password_hash : DUMMY_HASH);
   if (!user || !ok) return res.status(401).json({ error: 'Incorrect email or password.' });
   const pool = getPool();
-  const token = await createSession(pool, res, user.id);
+  const token = await createSession(pool, user.id);
+  setSessionCookie(res, token);
   await pool.query('DELETE FROM sessions WHERE expires_at < UTC_TIMESTAMP()');
   res.json({ user: publicUser(user), ...(req.crossOrigin && { token }) });
 });

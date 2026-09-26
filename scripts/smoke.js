@@ -1,84 +1,175 @@
 #!/usr/bin/env node
 'use strict';
-// Smoke test: exercises every API endpoint against a running server, then deletes
-// the throwaway account it created.
+// Smoke test: a fast, non-destructive check that a deployment is alive and its
+// critical paths work. Safe to run against the live site: it never resets data or
+// changes budgets, and removes the one transaction it adds.
 //
-//   npm run smoke                                   # http://localhost:$PORT, cookie auth
-//   npm run smoke -- https://x.trycloudflare.com    # through the tunnel
-//   npm run smoke -- <url> --origin https://shubin123.github.io   # as the Pages site (bearer token)
+//   npm run smoke                                        # local server on $PORT (cookie auth)
+//   npm run smoke -- http://host:3000                    # any server
+//   npm run smoke -- --pages https://shubin123.github.io/spend_track/
+//        # the whole deployed chain: Pages site -> api-config.js -> tunnel -> API -> MySQL,
+//        # authenticated as the Pages origin with a bearer token
 //
-// Cleanup uses the local DB config; pass --no-cleanup to skip it.
+// Account: SMOKE_EMAIL + SMOKE_PASSWORD sign in to a dedicated smoke account (nothing
+// is left behind, no DB access needed). Without them, a throwaway account is created
+// and deleted through the local DB config afterwards.
+// Exit code 0 = healthy. Stops at the first failure, since later checks depend on it.
 const crypto = require('crypto');
 
-const args = process.argv.slice(2);
-const flag = name => { const i = args.indexOf(name); return i < 0 ? null : args.splice(i, 2)[1] ?? ''; };
-const origin = flag('--origin');
-const noCleanup = args.includes('--no-cleanup') && args.splice(args.indexOf('--no-cleanup'), 1);
-const base = (args[0] || `http://localhost:${process.env.PORT || 3000}`).replace(/\/+$/, '');
+const argv = process.argv.slice(2);
+const opt = name => { const i = argv.indexOf(name); return i < 0 ? null : argv.splice(i, 2)[1]; };
+const pagesUrl = opt('--pages');
+const SLOW_MS = Number(process.env.SMOKE_SLOW_MS || 2000);
+const TIMEOUT_MS = Number(process.env.SMOKE_TIMEOUT_MS || 15000);
 
-let cookie = '', token = '', failures = 0;
-async function call(method, path, body, extra = {}) {
-  const headers = { ...(body !== undefined && { 'Content-Type': 'application/json' }), ...extra };
-  if (origin) { headers.Origin = origin; if (token) headers.Authorization = 'Bearer ' + token; }
-  else if (cookie) headers.Cookie = cookie;
-  const res = await fetch(base + path, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(20000) });
+const green = s => `\x1b[32m${s}\x1b[0m`, red = s => `\x1b[31m${s}\x1b[0m`, yellow = s => `\x1b[33m${s}\x1b[0m`, dim = s => `\x1b[2m${s}\x1b[0m`;
+let base, origin = null, cookie = '', token = '', throwaway = null;
+const started = Date.now();
+
+class SmokeFailure extends Error {}
+
+async function http(method, url, { body, headers = {} } = {}) {
+  const h = { ...headers };
+  if (body !== undefined) h['Content-Type'] = 'application/json';
+  if (origin) { h.Origin = origin; if (token) h.Authorization = `Bearer ${token}`; }
+  else if (cookie) h.Cookie = cookie;
+  const res = await fetch(url, { method, headers: h, body: body === undefined ? undefined : JSON.stringify(body), redirect: 'manual', signal: AbortSignal.timeout(TIMEOUT_MS) });
   const set = res.headers.get('set-cookie');
   if (set) cookie = set.split(';')[0];
-  const data = await res.json().catch(() => null);
-  if (data?.token) token = data.token;
-  return { status: res.status, data, res };
+  const text = await res.text();
+  let json = null;
+  try { json = JSON.parse(text); } catch { /* not JSON */ }
+  if (json?.token) token = json.token;
+  return { status: res.status, headers: res.headers, text, json };
 }
-function check(name, ok, detail = '') {
-  console.log(`  ${ok ? '\x1b[32m✓' : '\x1b[31m✗'}\x1b[0m ${name}${ok ? '' : `  ${detail}`}`);
-  if (!ok) failures++;
+const api = (method, path, body) => http(method, `${base}/api/${path}`, { body });
+
+async function check(name, fn) {
+  const t0 = Date.now();
+  let detail;
+  try {
+    detail = await fn();
+  } catch (err) {
+    console.log(`  ${red('✗')} ${name}\n      ${red(err instanceof SmokeFailure ? err.message : `${err.name}: ${err.message}${err.cause?.code ? ` (${err.cause.code})` : ''}`)}`);
+    throw new SmokeFailure(name);
+  }
+  const ms = Date.now() - t0;
+  const time = ms > SLOW_MS ? yellow(`${ms} ms (slow)`) : dim(`${ms} ms`);
+  console.log(`  ${green('✓')} ${name} ${time}${detail ? dim(`  ${detail}`) : ''}`);
 }
-const expect = async (name, want, p) => { const r = await p; check(name, r.status === want, `expected ${want}, got ${r.status} ${JSON.stringify(r.data)}`); return r; };
+function expect(cond, message) { if (!cond) throw new SmokeFailure(message); }
+function expectStatus(r, want) {
+  if (r.status === 429) throw new SmokeFailure('rate limited (429): more than 30 sign-ins from this IP in 15 minutes. Wait, or restart the server to clear the in-memory limit.');
+  expect(r.status === want, `expected HTTP ${want}, got ${r.status}: ${r.text.slice(0, 200)}`);
+}
 
 async function main() {
-  console.log(`Smoke test: ${base}${origin ? ` as ${origin} (bearer token)` : ' (cookie)'}`);
-  const email = `smoke-${crypto.randomBytes(5).toString('hex')}@example.test`;
-  const password = crypto.randomBytes(12).toString('base64url');
-  const tx = { date: new Date().toISOString().slice(0, 10), merchant: 'Smoke Cafe', category: 'dining', type: 'expense', amount: 12.5, note: 'smoke' };
-
-  const page = await fetch(base + '/', { signal: AbortSignal.timeout(20000) });
-  check('GET / serves the app', page.ok && (await page.text()).includes('app.js'), `status ${page.status}`);
-  if (origin) {
-    const pre = await fetch(base + '/api/transactions', { method: 'OPTIONS', headers: { Origin: origin, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'content-type,authorization' } });
-    check('CORS preflight allows origin', pre.status === 204 && pre.headers.get('access-control-allow-origin') === origin, `status ${pre.status}`);
+  if (pagesUrl) {
+    const site = pagesUrl.endsWith('/') ? pagesUrl : pagesUrl + '/';
+    origin = new URL(site).origin;
+    console.log(`Smoke test: ${site} (GitHub Pages -> API)`);
+    await check('Pages site is up and serves the app', async () => {
+      const r = await http('GET', site);
+      expectStatus(r, 200);
+      expect(r.text.includes('app.js') && r.text.includes('api-config.js'), 'index.html does not load app.js and api-config.js');
+    });
+    await check('Pages front-end assets load', async () => {
+      for (const f of ['app.js', 'seed.js', 'styles.css']) expectStatus(await http('GET', site + f), 200);
+    });
+    await check('api-config.js points at an API', async () => {
+      const r = await http('GET', `${site}api-config.js?nocache=${Date.now()}`);
+      expectStatus(r, 200);
+      base = r.text.match(/SPEND_TRACK_API\s*=\s*'([^']+)'/)?.[1]?.replace(/\/+$/, '');
+      expect(base, 'api-config.js has no API URL, so the site is in browser-only mode (run: npm run tunnel -- --publish)');
+      return base;
+    });
+    await check('CORS preflight allows the Pages origin', async () => {
+      const r = await http('OPTIONS', `${base}/api/transactions`, { headers: { 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'content-type,authorization' } });
+      expect(r.status === 204 && r.headers.get('access-control-allow-origin') === origin,
+        `preflight returned ${r.status}, allow-origin=${r.headers.get('access-control-allow-origin')} (is the tunnel up and ALLOWED_ORIGINS correct?)`);
+    });
+  } else {
+    base = (argv[0] || `http://localhost:${process.env.PORT || 3000}`).replace(/\/+$/, '');
+    console.log(`Smoke test: ${base}`);
+    await check('server is up and serves the app', async () => {
+      const r = await http('GET', base + '/');
+      expectStatus(r, 200);
+      expect(r.text.includes('app.js'), 'index.html does not reference app.js');
+      expect(r.headers.get('x-content-type-options') === 'nosniff', 'security headers missing');
+    });
+    await check('server code is not exposed', async () => {
+      for (const p of ['/server/config.js', '/package.json', '/.env']) expectStatus(await http('GET', base + p), 404);
+    });
   }
-  await expect('me while signed out → 401', 401, call('GET', '/api/auth/me'));
-  const signup = await expect('signup → 201', 201, call('POST', '/api/auth/signup', { name: 'Smoke Test', email, password, sample: true }));
-  if (origin) check('signup returns bearer token', !!signup.data?.token);
-  await expect('me → 200', 200, call('GET', '/api/auth/me'));
-  const data = await expect('load data → 200', 200, call('GET', '/api/data'));
-  check('sample data loaded', data.data?.transactions?.length > 0, JSON.stringify(data.data)?.slice(0, 120));
-  const created = await expect('create transaction → 201', 201, call('POST', '/api/transactions', tx));
-  const id = created.data?.transaction?.id;
-  await expect('update transaction → 200', 200, call('PUT', `/api/transactions/${id}`, { ...tx, amount: 15, version: 1 }));
-  await expect('stale update → 409', 409, call('PUT', `/api/transactions/${id}`, { ...tx, amount: 1, version: 1 }));
-  await expect('invalid transaction → 400', 400, call('POST', '/api/transactions', { ...tx, amount: -5 }));
-  await expect('delete transaction → 200', 200, call('DELETE', `/api/transactions/${id}`));
-  await expect('delete again → 404', 404, call('DELETE', `/api/transactions/${id}`));
-  await expect('set budget → 200', 200, call('PUT', '/api/budgets/dining', { amount: 450 }));
-  const after = await call('GET', '/api/data');
-  check('budget persisted', after.data?.budgets?.dining === 450, JSON.stringify(after.data?.budgets));
-  await expect('reset data → 200', 200, call('POST', '/api/reset', {}));
-  await expect('unknown API path → 404', 404, call('GET', '/api/nope'));
-  if (!origin) await expect('cross-site write blocked → 403', 403, call('POST', '/api/reset', {}, { Origin: 'https://evil.example' }));
-  await expect('sign out → 200', 200, call('POST', '/api/auth/logout', {}));
-  await expect('me after sign out → 401', 401, call('GET', '/api/auth/me'));
-  cookie = ''; token = '';
-  await expect('wrong password → 401', 401, call('POST', '/api/auth/login', { email, password: password + 'x' }));
-  await expect('sign in → 200', 200, call('POST', '/api/auth/login', { email, password }));
 
-  if (!noCleanup) {
-    const { getPool } = require('../server/db');
-    const [r] = await getPool().query('DELETE FROM users WHERE email = ?', [email]);
-    await getPool().end();
-    check('cleanup: test account deleted', r.affectedRows === 1);
-  }
-  console.log(failures ? `\x1b[31m${failures} check(s) failed\x1b[0m` : '\x1b[32mAll smoke checks passed\x1b[0m');
-  process.exit(failures ? 1 : 0);
+  await check('API answers and requires a session', async () => {
+    const r = await api('GET', 'auth/me');
+    expectStatus(r, 401);
+    expect(r.json?.error, 'API did not return JSON (wrong URL, or tunnel pointing at something else?)');
+  });
+
+  await check('sign in', async () => {
+    if (process.env.SMOKE_EMAIL) {
+      const r = await api('POST', 'auth/login', { email: process.env.SMOKE_EMAIL, password: process.env.SMOKE_PASSWORD || '' });
+      expectStatus(r, 200);
+      return `as ${process.env.SMOKE_EMAIL}`;
+    }
+    throwaway = `smoke-${crypto.randomBytes(5).toString('hex')}@example.test`;
+    const r = await api('POST', 'auth/signup', { name: 'Smoke Test', email: throwaway, password: crypto.randomBytes(12).toString('base64url'), sample: false });
+    expectStatus(r, 201);
+    return `throwaway ${throwaway}`;
+  });
+  await check('session is recognised', async () => expectStatus(await api('GET', 'auth/me'), 200));
+
+  let txId;
+  const merchant = `Smoke ${crypto.randomBytes(3).toString('hex')}`;
+  await check('write: add a transaction', async () => {
+    const r = await api('POST', 'transactions', { type: 'expense', category: 'dining', merchant, amount: 1.23, date: new Date().toISOString().slice(0, 10), note: 'smoke test' });
+    expectStatus(r, 201);
+    txId = r.json.transaction.id;
+  });
+  await check('read: it is stored in the database', async () => {
+    const r = await api('GET', 'data');
+    expectStatus(r, 200);
+    expect(r.json.transactions.some(t => t.id === txId && t.merchant === merchant && t.amount === 1.23), 'new transaction missing from /api/data');
+    return `${r.json.transactions.length} transaction(s)`;
+  });
+  await check('update with optimistic concurrency', async () => {
+    const body = { type: 'expense', category: 'dining', merchant, amount: 2.34, date: new Date().toISOString().slice(0, 10), note: 'smoke test' };
+    expectStatus(await api('PUT', `transactions/${txId}`, { ...body, version: 1 }), 200);
+    expectStatus(await api('PUT', `transactions/${txId}`, { ...body, version: 1 }), 409);
+  });
+  await check('delete: clean up the transaction', async () => {
+    expectStatus(await api('DELETE', `transactions/${txId}`), 200);
+    txId = null;
+  });
+  await check('sign out ends the session', async () => {
+    expectStatus(await api('POST', 'auth/logout', {}), 200);
+    cookie = ''; token = '';
+    expectStatus(await api('GET', 'auth/me'), 401);
+  });
 }
 
-main().catch(err => { console.error('  ✗', err.message); process.exit(1); });
+async function cleanup() {
+  if (!throwaway) return;
+  try {
+    const { getPool } = require('../server/db');
+    const [r] = await getPool().query('DELETE FROM users WHERE email = ?', [throwaway]);
+    await getPool().end();
+    if (r.affectedRows) console.log(`  ${green('✓')} removed throwaway account ${dim(throwaway)}`);
+  } catch (err) {
+    console.log(`  ${yellow('!')} could not remove ${throwaway} (${err.message}); set SMOKE_EMAIL/SMOKE_PASSWORD to use a fixed account`);
+  }
+}
+
+main()
+  .then(() => ({ ok: true }), err => {
+    if (!(err instanceof SmokeFailure)) console.log(red(`  ✗ ${err.stack}`));
+    return { ok: false };
+  })
+  .then(async ({ ok }) => {
+    await cleanup();
+    const secs = ((Date.now() - started) / 1000).toFixed(1);
+    console.log(ok ? green(`Smoke test passed in ${secs}s`) : red(`Smoke test FAILED after ${secs}s`));
+    process.exit(ok ? 0 : 1);
+  });

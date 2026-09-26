@@ -552,7 +552,9 @@
     $('#fDate').max = TODAY;
     $('#fNote').value = tx ? tx.note || '' : '';
     txDialog.showModal();
-    setTimeout(() => $('#fAmount').focus(), 50);
+    // Focus synchronously: a deferred focus can fire after the user (or autofill) has
+    // moved to another field and redirect their typing into Amount.
+    $('#fAmount').focus();
   }
 
   $('#txForm').addEventListener('submit', async e => {
@@ -609,7 +611,7 @@
     $('#bCatName').textContent = CATEGORIES[editingCat].name;
     $('#bAmount').value = state.budgets[editingCat] || 0;
     budgetDialog.showModal();
-    setTimeout(() => $('#bAmount').select(), 50);
+    $('#bAmount').select();
   });
   $('#budgetForm').addEventListener('submit', async e => {
     e.preventDefault();
@@ -696,7 +698,7 @@
     setAuthMode(authMode);
     if (message) { $('#authError').textContent = message; $('#authError').classList.remove('hidden'); }
     $('#auth').classList.remove('hidden');
-    setTimeout(() => $(authMode === 'signup' ? '#aName' : '#aEmail').focus(), 50);
+    $(authMode === 'signup' ? '#aName' : '#aEmail').focus();
   }
   const hideAuth = () => $('#auth').classList.add('hidden');
 
@@ -779,9 +781,10 @@
     render();
   }
 
+  // data-state="ready" tells tests (and anything else) that boot has finished.
   boot().catch(err => {
     renderAccount();
     render();
     toast(err.message || 'Could not load your data.');
-  });
+  }).finally(() => { document.documentElement.dataset.state = 'ready'; });
 })();

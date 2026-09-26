@@ -34,18 +34,25 @@ function getPool() {
 }
 
 // Run fn(conn) inside a transaction; commits on success, rolls back on throw.
-async function withTransaction(fn) {
-  const conn = await getPool().getConnection();
-  try {
-    await conn.beginTransaction();
-    const result = await fn(conn);
-    await conn.commit();
-    return result;
-  } catch (err) {
-    await conn.rollback().catch(() => {});
-    throw err;
-  } finally {
-    conn.release();
+// InnoDB can pick this transaction as a deadlock victim when other users write at the
+// same time; MySQL's advice is to retry, so fn may run more than once and must not have
+// side effects outside the database.
+async function withTransaction(fn, { retries = 4, isolation } = {}) {
+  for (let attempt = 0; ; attempt++) {
+    const conn = await getPool().getConnection();
+    try {
+      if (isolation) await conn.query(`SET TRANSACTION ISOLATION LEVEL ${isolation}`); // next transaction only
+      await conn.beginTransaction();
+      const result = await fn(conn);
+      await conn.commit();
+      return result;
+    } catch (err) {
+      await conn.rollback().catch(() => {});
+      if (err.code !== 'ER_LOCK_DEADLOCK' || attempt >= retries) throw err;
+    } finally {
+      conn.release();
+    }
+    await new Promise(r => setTimeout(r, 10 + Math.random() * 40 * (attempt + 1)));
   }
 }
 

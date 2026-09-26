@@ -11,7 +11,10 @@ module.exports = defineConfig({
   testDir: 'e2e',
   timeout: 60_000,
   expect: { timeout: 15_000 },
-  workers: 1, // tests share one server and its sign-in rate limit
+  // Tests are independent (own account each, seeded in the DB), so they run in parallel.
+  fullyParallel: true,
+  workers: process.env.CI ? 2 : 4,
+  forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   globalTeardown: require.resolve('./e2e/teardown.js'),
