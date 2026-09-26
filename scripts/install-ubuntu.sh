@@ -43,7 +43,11 @@ upsert_env() {
   if grep -q "^$key=" "$ENV_FILE"; then sed -i "s|^$key=.*|$key='$value'|" "$ENV_FILE"
   else printf "%s='%s'\n" "$key" "$value" >> "$ENV_FILE"; fi
 }
-env_value() { grep -E "^$1=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | sed "s/^'//; s/'\$//"; }
+# Reads KEY from the config file; empty if the file or key doesn't exist (first install).
+env_value() {
+  [[ -f $ENV_FILE ]] || return 0
+  { grep -E "^$1=" "$ENV_FILE" || true; } | tail -1 | cut -d= -f2- | sed "s/^'//; s/'\$//"
+}
 
 [[ $EUID -eq 0 ]] || die "Run as root: sudo bash scripts/install-ubuntu.sh"
 command -v apt-get >/dev/null || die "This installer supports Ubuntu/Debian (apt)."
