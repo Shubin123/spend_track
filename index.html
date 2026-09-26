@@ -134,7 +134,7 @@
       </div>
       <label class="amount-field">
         <span>$</span>
-        <input id="fAmount" type="number" step="0.01" min="0.01" placeholder="0.00" required aria-label="Amount" />
+        <input id="fAmount" type="text" inputmode="decimal" autocomplete="off" maxlength="13" placeholder="0.00" required aria-label="Amount" />
       </label>
       <label><span id="fMerchantLabel">Paid to</span>
         <input id="fMerchant" type="text" required maxlength="60" />
@@ -159,7 +159,7 @@
           <div class="row">
             <label>Repeats every
               <span class="inline">
-                <input id="fEvery" type="number" min="1" max="365" value="1" aria-label="Interval" />
+                <input id="fEvery" type="text" inputmode="numeric" autocomplete="off" maxlength="3" value="1" aria-label="Interval" />
                 <select id="fUnit" aria-label="Unit">
                   <option value="day">day</option>
                   <option value="week">week</option>
@@ -169,7 +169,7 @@
               </span>
             </label>
             <label>Number of times
-              <input id="fReps" type="number" min="2" max="60" value="12" />
+              <input id="fReps" type="text" inputmode="numeric" autocomplete="off" maxlength="2" value="12" />
             </label>
           </div>
           <p class="repeat-preview" id="repeatPreview"></p>
@@ -190,7 +190,7 @@
       <h3 id="budgetDialogTitle"><span id="bCatName"></span> budget</h3>
       <label class="amount-field">
         <span>$</span>
-        <input id="bAmount" type="number" step="1" min="0" required aria-label="Monthly limit" />
+        <input id="bAmount" type="text" inputmode="numeric" autocomplete="off" maxlength="9" required aria-label="Monthly limit" />
       </label>
       <p class="muted small">Monthly limit. Set to 0 to stop tracking this category.</p>
       <div class="dialog-actions">

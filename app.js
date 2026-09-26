@@ -672,6 +672,26 @@
     }
   };
   $$('#txType button').forEach(b => b.onclick = () => setFormType(b.dataset.type));
+  // Amount and count fields accept digits (plus one decimal point where cents are allowed).
+  // A type="number" input would also take "e", "+" and "-", and pasted text needs the same cleanup.
+  function digitsOnly(el, decimals) {
+    const clean = v => {
+      v = v.replace(decimals ? /[^\d.]/g : /\D/g, '');
+      const dot = v.indexOf('.');
+      return dot < 0 ? v : v.slice(0, dot + 1) + v.slice(dot + 1).replace(/\./g, '').slice(0, decimals);
+    };
+    el.addEventListener('input', () => {
+      const v = el.value, cleaned = clean(v);
+      if (cleaned === v) return;
+      const caret = clean(v.slice(0, el.selectionStart)).length;
+      el.value = cleaned;
+      el.setSelectionRange(caret, caret);
+    });
+  }
+  digitsOnly($('#fAmount'), 2);
+  digitsOnly($('#fEvery'), 0);
+  digitsOnly($('#fReps'), 0);
+  digitsOnly($('#bAmount'), 0);
   ['#fRepeat', '#fEvery', '#fUnit', '#fReps', '#fDate', '#fAmount'].forEach(s => $(s).addEventListener('input', updateRepeat));
 
   const budgetDialog = $('#budgetDialog');

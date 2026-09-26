@@ -260,8 +260,7 @@ dialog .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .amount-field { flex-direction: row !important; align-items: center; gap: 4px !important; border-bottom: 2px solid var(--line); margin-bottom: 18px !important; }
 .amount-field:focus-within { border-color: var(--violet); }
 .amount-field span { font-size: 32px; color: var(--muted); font-weight: 500; }
-.amount-field input { font-size: 38px; font-weight: 600; letter-spacing: -.03em; border: 0; padding: 4px 0; box-shadow: none !important; background: transparent; -moz-appearance: textfield; }
-.amount-field input::-webkit-outer-spin-button, .amount-field input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.amount-field input { font-size: 38px; font-weight: 600; letter-spacing: -.03em; border: 0; padding: 4px 0; box-shadow: none !important; background: transparent; }
 .dialog-actions { display: flex; gap: 8px; margin-top: 8px; }
 
 .repeat { border-top: 1px solid var(--line); padding-top: 14px; margin-bottom: 6px; }
