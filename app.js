@@ -2,23 +2,7 @@
   'use strict';
 
   // ---------- Config ----------
-  const CATEGORIES = {
-    housing:       { name: 'Housing',       icon: '🏠', color: '#6366f1' },
-    groceries:     { name: 'Groceries',     icon: '🛒', color: '#10b981' },
-    dining:        { name: 'Dining',        icon: '🍜', color: '#f59e0b' },
-    transport:     { name: 'Transport',     icon: '🚗', color: '#3b82f6' },
-    utilities:     { name: 'Utilities',     icon: '💡', color: '#8b5cf6' },
-    entertainment: { name: 'Entertainment', icon: '🎬', color: '#ec4899' },
-    shopping:      { name: 'Shopping',      icon: '🛍️', color: '#f97316' },
-    health:        { name: 'Health',        icon: '💪', color: '#14b8a6' },
-    travel:        { name: 'Travel',        icon: '✈️', color: '#0ea5e9' },
-    income:        { name: 'Income',        icon: '💰', color: '#059669' },
-  };
-  const EXPENSE_CATS = Object.keys(CATEGORIES).filter(k => k !== 'income');
-  const DEFAULT_BUDGETS = {
-    housing: 2000, groceries: 600, dining: 400, transport: 250, utilities: 300,
-    entertainment: 120, shopping: 300, health: 120, travel: 400,
-  };
+  const { CATEGORIES, EXPENSE_CATS } = window.SpendSeed;
   const STORE_KEY = 'spendtrack.v1';
 
   // ---------- Utils ----------
@@ -46,61 +30,17 @@
   const TODAY = ymd(today);
   const THIS_MONTH = monthKey(today);
 
-  // ---------- Demo data ----------
-  function mulberry32(a) {
-    return () => {
-      a |= 0; a = a + 0x6D2B79F5 | 0;
-      let t = Math.imul(a ^ a >>> 15, 1 | a);
-      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-      return ((t ^ t >>> 14) >>> 0) / 4294967296;
-    };
+  // ---------- Data layer ----------
+  // "api": served by the Node server, data lives in MySQL per signed-in user.
+  // "local": static hosting (e.g. GitHub Pages), data lives in this browser only.
+  let mode = 'local';
+  let user = null;
+
+  function localSeed() {
+    const s = SpendSeed.generate(today);
+    return { txs: s.txs.map(t => ({ id: uid(), ...t })), budgets: s.budgets };
   }
-
-  function seed() {
-    const rnd = mulberry32(42);
-    const r = (a, b) => a + rnd() * (b - a);
-    const ri = (a, b) => Math.floor(r(a, b + 1));
-    const pick = arr => arr[Math.floor(rnd() * arr.length)];
-    const txs = [];
-    const add = (date, merchant, category, amount, type = 'expense', note = '') => {
-      if (date > TODAY) return;
-      txs.push({ id: uid(), date, merchant, category, amount: Math.round(amount * 100) / 100, type, note });
-    };
-
-    for (let i = 6; i >= 0; i--) {
-      const mk = addMonths(THIS_MONTH, -i);
-      const dim = daysIn(mk);
-      const d = n => `${mk}-${pad(Math.min(n, dim))}`;
-      const rd = () => d(ri(1, dim));
-
-      add(d(1), 'Acme Corp Payroll', 'income', 3850, 'income', 'Salary');
-      add(d(15), 'Acme Corp Payroll', 'income', 3850, 'income', 'Salary');
-      if (rnd() < 0.35) add(rd(), 'Upwork', 'income', r(300, 900), 'income', 'Freelance');
-
-      add(d(1), 'Parkview Apartments', 'housing', 1950, 'expense', 'Rent');
-      add(d(5), 'PG&E', 'utilities', r(78, 145));
-      add(d(12), 'Comcast Xfinity', 'utilities', 70);
-      add(d(20), 'Verizon Wireless', 'utilities', 55);
-      add(d(8), 'Netflix', 'entertainment', 15.49);
-      add(d(18), 'Spotify', 'entertainment', 11.99);
-      add(d(3), 'Equinox', 'health', 49, 'expense', 'Membership');
-
-      for (let k = ri(7, 10); k--;) add(rd(), pick(["Trader Joe's", 'Whole Foods', 'Safeway', 'Costco', 'Berkeley Bowl']), 'groceries', r(22, 150));
-      for (let k = ri(12, 17); k--;) add(rd(), pick(['Blue Bottle Coffee', 'Chipotle', 'Sweetgreen', 'Tartine Bakery', 'Kin Khao', 'DoorDash', 'Philz Coffee', 'Nopa']), 'dining', r(6, 72));
-      for (let k = ri(5, 9); k--;) add(rd(), pick(['Uber', 'Lyft', 'Shell', 'Clipper Card', 'Chevron']), 'transport', r(9, 58));
-      for (let k = ri(1, 3); k--;) add(rd(), pick(['AMC Theatres', 'Steam', 'Ticketmaster', 'Apple TV+']), 'entertainment', r(9, 65));
-      for (let k = ri(2, 5); k--;) add(rd(), pick(['Amazon', 'Target', 'Uniqlo', 'Apple Store', 'IKEA']), 'shopping', r(14, 175));
-      if (rnd() < 0.6) add(rd(), pick(['CVS Pharmacy', 'Walgreens', 'One Medical']), 'health', r(12, 60));
-      if (rnd() < 0.4) {
-        add(rd(), pick(['United Airlines', 'Alaska Airlines', 'Delta']), 'travel', r(240, 460), 'expense', 'Flight');
-        add(rd(), pick(['Airbnb', 'Marriott', 'Hotel Zetta']), 'travel', r(180, 420));
-      }
-    }
-    return { txs, budgets: { ...DEFAULT_BUDGETS } };
-  }
-
-  // ---------- State ----------
-  function load() {
+  function loadLocal() {
     try {
       const raw = localStorage.getItem(STORE_KEY);
       if (raw) {
@@ -108,17 +48,99 @@
         if (Array.isArray(data.txs) && data.budgets) return data;
       }
     } catch (_) { /* storage unavailable */ }
-    return seed();
+    return localSeed();
   }
-  function save() {
+  function saveLocal() {
+    if (mode !== 'local') return;
     try { localStorage.setItem(STORE_KEY, JSON.stringify({ txs: state.txs, budgets: state.budgets })); } catch (_) {}
   }
 
+  async function api(method, path, body) {
+    let res;
+    try {
+      res = await fetch('api/' + path, {
+        method, credentials: 'same-origin',
+        headers: body ? { 'Content-Type': 'application/json' } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+    } catch (_) {
+      throw Object.assign(new Error('Network error. Check your connection and try again.'), { status: 0 });
+    }
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401 && !path.startsWith('auth/')) showAuth('Your session expired. Please sign in again.');
+    if (!res.ok) throw Object.assign(new Error(data.error || `Request failed (${res.status})`), { status: res.status, data });
+    return data;
+  }
+
   const state = {
-    ...load(),
+    txs: [],
+    budgets: {},
     month: THIS_MONTH,
     view: 'dashboard',
     filter: { q: '', cat: 'all', type: 'all' },
+  };
+
+  async function loadRemote() {
+    const d = await api('GET', 'data');
+    state.txs = d.transactions;
+    state.budgets = d.budgets;
+  }
+
+  // Every mutation hits the server first; local state changes only after it succeeds,
+  // so the screen never shows data that wasn't saved.
+  const store = {
+    async add(data) {
+      if (mode === 'api') {
+        const { transaction } = await api('POST', 'transactions', data);
+        state.txs.push(transaction);
+        return transaction;
+      }
+      const t = { id: uid(), ...data };
+      state.txs.push(t);
+      saveLocal();
+      return t;
+    },
+    async update(id, data) {
+      if (mode === 'api') {
+        const cur = state.txs.find(t => t.id === id);
+        try {
+          const { transaction } = await api('PUT', 'transactions/' + id, { ...data, version: cur.version });
+          Object.assign(cur, transaction);
+        } catch (e) {
+          // 409: someone else saved first; adopt the server's copy. 404: it was deleted elsewhere.
+          if (e.status === 409 && e.data.transaction) Object.assign(cur, e.data.transaction);
+          if (e.status === 404) state.txs = state.txs.filter(t => t.id !== id);
+          throw e;
+        }
+        return;
+      }
+      Object.assign(state.txs.find(t => t.id === id), data);
+      saveLocal();
+    },
+    async remove(id) {
+      if (mode === 'api') {
+        try { await api('DELETE', 'transactions/' + id); }
+        catch (e) { if (e.status !== 404) throw e; }
+      }
+      const removed = state.txs.find(t => t.id === id);
+      state.txs = state.txs.filter(t => t.id !== id);
+      saveLocal();
+      return removed;
+    },
+    async setBudget(cat, amount) {
+      if (mode === 'api') await api('PUT', 'budgets/' + cat, { amount });
+      state.budgets[cat] = amount;
+      saveLocal();
+    },
+    async reset() {
+      if (mode === 'api') {
+        await api('POST', 'reset', {});
+        await loadRemote();
+      } else {
+        Object.assign(state, localSeed());
+        saveLocal();
+      }
+    },
   };
 
   // ---------- Selectors ----------
@@ -515,7 +537,7 @@
     setTimeout(() => $('#fAmount').focus(), 50);
   }
 
-  $('#txForm').addEventListener('submit', e => {
+  $('#txForm').addEventListener('submit', async e => {
     e.preventDefault();
     const amount = parseFloat($('#fAmount').value);
     if (!(amount > 0)) return;
@@ -527,20 +549,36 @@
       note: $('#fNote').value.trim(),
       type: formType,
     };
-    if (editingId) Object.assign(state.txs.find(t => t.id === editingId), data);
-    else state.txs.push({ id: uid(), ...data });
-    save();
-    txDialog.close();
-    state.month = data.date.slice(0, 7);
-    render();
-    toast(editingId ? 'Transaction updated' : `Added ${money(data.amount)} at ${data.merchant}`);
+    const id = editingId, btn = $('#saveTx');
+    btn.disabled = true;
+    try {
+      if (id) await store.update(id, data);
+      else await store.add(data);
+      txDialog.close();
+      state.month = data.date.slice(0, 7);
+      toast(id ? 'Transaction updated' : `Added ${money(data.amount)} at ${data.merchant}`);
+    } catch (err) {
+      if (err.status === 409 || err.status === 404) txDialog.close();
+      if (err.status !== 401) toast(err.message);
+    } finally {
+      btn.disabled = false;
+      render();
+    }
   });
   $('#cancelTx').onclick = () => txDialog.close();
-  $('#deleteTx').onclick = () => {
-    const idx = state.txs.findIndex(t => t.id === editingId);
-    const [removed] = state.txs.splice(idx, 1);
-    save(); txDialog.close(); render();
-    toast(`Deleted ${removed.merchant}`, { label: 'Undo', fn: () => { state.txs.push(removed); save(); render(); } });
+  $('#deleteTx').onclick = async () => {
+    try {
+      const removed = await store.remove(editingId);
+      txDialog.close();
+      render();
+      if (!removed) return;
+      const { id: _id, version: _v, ...copy } = removed;
+      toast(`Deleted ${removed.merchant}`, { label: 'Undo', fn: async () => {
+        try { await store.add(copy); render(); } catch (err) { if (err.status !== 401) toast(err.message); }
+      } });
+    } catch (err) {
+      if (err.status !== 401) toast(err.message);
+    }
   };
   $$('#txType button').forEach(b => b.onclick = () => setFormType(b.dataset.type));
 
@@ -555,11 +593,17 @@
     budgetDialog.showModal();
     setTimeout(() => $('#bAmount').select(), 50);
   });
-  $('#budgetForm').addEventListener('submit', e => {
+  $('#budgetForm').addEventListener('submit', async e => {
     e.preventDefault();
-    state.budgets[editingCat] = Math.max(0, Math.round(+$('#bAmount').value || 0));
-    save(); budgetDialog.close(); render();
-    toast(`${CATEGORIES[editingCat].name} budget set to ${money(state.budgets[editingCat], true)}`);
+    const cat = editingCat, amount = Math.max(0, Math.round(+$('#bAmount').value || 0));
+    try {
+      await store.setBudget(cat, amount);
+      budgetDialog.close();
+      render();
+      toast(`${CATEGORIES[cat].name} budget set to ${money(amount, true)}`);
+    } catch (err) {
+      if (err.status !== 401) toast(err.message);
+    }
   });
   $('#cancelBudget').onclick = () => budgetDialog.close();
   [txDialog, budgetDialog].forEach(d => d.addEventListener('click', e => { if (e.target === d) d.close(); }));
@@ -578,10 +622,19 @@
   $('#catFilter').addEventListener('change', e => { state.filter.cat = e.target.value; renderTransactions(); });
   $$('#typeFilter button').forEach(b => b.onclick = () => { state.filter.type = b.dataset.type; renderTransactions(); });
   $('#exportCsv').onclick = exportCsv;
-  $('#resetData').onclick = () => {
-    if (!confirm('Reset to demo data? Your changes will be lost.')) return;
-    Object.assign(state, seed(), { month: THIS_MONTH });
-    save(); render(); toast('Demo data restored');
+  $('#resetData').onclick = async () => {
+    const msg = mode === 'api'
+      ? 'Replace all transactions in your account with sample data? This cannot be undone.'
+      : 'Reset to demo data? Your changes will be lost.';
+    if (!confirm(msg)) return;
+    try {
+      await store.reset();
+      state.month = THIS_MONTH;
+      render();
+      toast('Sample data restored');
+    } catch (err) {
+      if (err.status !== 401) toast(err.message);
+    }
   };
 
   // Theme: explicit choice wins, otherwise follow the OS.
@@ -597,11 +650,111 @@
   };
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'n' && !e.metaKey && !e.ctrlKey && !txDialog.open && !budgetDialog.open && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) {
+    if (e.key === 'n' && !e.metaKey && !e.ctrlKey && $('#auth').classList.contains('hidden') && !txDialog.open && !budgetDialog.open && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) {
       e.preventDefault(); openTx(null);
     }
   });
 
-  save();
-  render();
+  // ---------- Auth ----------
+  let authMode = 'login';
+  function setAuthMode(m) {
+    authMode = m;
+    const signup = m === 'signup';
+    $('#authTitle').textContent = signup ? 'Create your account' : 'Welcome back';
+    $('#authSub').textContent = signup ? 'Track spending across all your devices.' : 'Sign in to see your spending.';
+    $('#authSubmit').textContent = signup ? 'Create account' : 'Sign in';
+    $('#authSwitchText').textContent = signup ? 'Already have an account?' : 'New here?';
+    $('#authSwitch').textContent = signup ? 'Sign in' : 'Create an account';
+    $('#nameField').classList.toggle('hidden', !signup);
+    $('#sampleField').classList.toggle('hidden', !signup);
+    $('#aPassword').autocomplete = signup ? 'new-password' : 'current-password';
+    $('#authError').classList.add('hidden');
+  }
+  function showAuth(message) {
+    user = null;
+    state.txs = [];
+    [txDialog, budgetDialog].forEach(d => d.open && d.close());
+    renderAccount();
+    setAuthMode(authMode);
+    if (message) { $('#authError').textContent = message; $('#authError').classList.remove('hidden'); }
+    $('#auth').classList.remove('hidden');
+    setTimeout(() => $(authMode === 'signup' ? '#aName' : '#aEmail').focus(), 50);
+  }
+  const hideAuth = () => $('#auth').classList.add('hidden');
+
+  function renderAccount() {
+    const el = $('#account');
+    const signedIn = mode === 'api' && user;
+    $('#logoutBtn').classList.toggle('hidden', !signedIn);
+    $('#mobileLogout').classList.toggle('hidden', !signedIn);
+    if (signedIn) {
+      const initials = user.name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+      el.innerHTML = `<div class="avatar">${esc(initials)}</div><div class="who"><b>${esc(user.name)}</b><span>${esc(user.email)}</span></div>`;
+    } else if (mode === 'local') {
+      el.innerHTML = `<div class="avatar">?</div><div class="who"><b>Demo mode</b><span>Data stays in this browser</span></div>`;
+    } else {
+      el.innerHTML = '';
+    }
+  }
+
+  $('#authSwitch').onclick = () => {
+    setAuthMode(authMode === 'login' ? 'signup' : 'login');
+    $(authMode === 'signup' ? '#aName' : '#aEmail').focus();
+  };
+  $('#authForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = $('#authSubmit'), errEl = $('#authError');
+    const body = { email: $('#aEmail').value.trim(), password: $('#aPassword').value };
+    if (authMode === 'signup') Object.assign(body, { name: $('#aName').value.trim(), sample: $('#aSample').checked });
+    errEl.classList.add('hidden');
+    btn.disabled = true;
+    try {
+      const d = await api('POST', 'auth/' + authMode, body);
+      user = d.user;
+      await loadRemote();
+      Object.assign(state, { month: THIS_MONTH, view: 'dashboard', filter: { q: '', cat: 'all', type: 'all' } });
+      $('#aPassword').value = '';
+      hideAuth();
+      renderAccount();
+      render();
+      toast(`${authMode === 'signup' ? 'Welcome' : 'Welcome back'}, ${user.name.split(' ')[0]}!`);
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.classList.remove('hidden');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  const logout = async () => {
+    await api('POST', 'auth/logout', {}).catch(() => {});
+    authMode = 'login';
+    showAuth();
+  };
+  $('#logoutBtn').onclick = logout;
+  $('#mobileLogout').onclick = logout;
+
+  // Detect whether we're served by the API server or from static hosting.
+  async function boot() {
+    try {
+      const res = await fetch('api/auth/me', { credentials: 'same-origin' });
+      const isJson = (res.headers.get('content-type') || '').includes('application/json');
+      if (isJson && (res.ok || res.status === 401)) {
+        mode = 'api';
+        if (res.ok) {
+          user = (await res.json()).user;
+          await loadRemote();
+        }
+      }
+    } catch (_) { /* no server: stay in local mode */ }
+    if (mode === 'local') Object.assign(state, loadLocal());
+    renderAccount();
+    if (mode === 'api' && !user) return showAuth();
+    render();
+  }
+
+  boot().catch(err => {
+    renderAccount();
+    render();
+    toast(err.message || 'Could not load your data.');
+  });
 })();

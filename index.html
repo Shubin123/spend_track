@@ -35,6 +35,7 @@
         </button>
       </nav>
       <div class="sidebar-foot">
+        <div class="account" id="account"></div>
         <button class="ghost small" id="themeToggle" title="Toggle theme">
           <svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
           <span>Theme</span>
@@ -42,6 +43,10 @@
         <button class="ghost small" id="resetData" title="Reset demo data">
           <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg>
           <span>Reset demo</span>
+        </button>
+        <button class="ghost small hidden" id="logoutBtn" title="Sign out">
+          <svg viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l-5-5 5-5M5 12h12"/></svg>
+          <span>Sign out</span>
         </button>
       </div>
     </aside>
@@ -61,6 +66,9 @@
           <button class="primary" id="addBtn">
             <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
             <span>Add transaction</span>
+          </button>
+          <button class="icon-btn mobile-logout hidden" id="mobileLogout" aria-label="Sign out" title="Sign out">
+            <svg viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l-5-5 5-5M5 12h12"/></svg>
           </button>
         </div>
       </header>
@@ -200,9 +208,41 @@
     </form>
   </dialog>
 
+  <!-- Auth screen (shown when the API is available and nobody is signed in) -->
+  <div class="auth hidden" id="auth">
+    <div class="auth-card">
+      <div class="brand auth-brand">
+        <span class="logo" aria-hidden="true">
+          <svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8"/><path d="M9 20l5-5 4 4 6-8"/></svg>
+        </span>
+        <span>Spend Track</span>
+      </div>
+      <h2 id="authTitle">Welcome back</h2>
+      <p class="muted" id="authSub">Sign in to see your spending.</p>
+      <form id="authForm" novalidate>
+        <label class="hidden" id="nameField">Name
+          <input id="aName" type="text" autocomplete="name" maxlength="80" />
+        </label>
+        <label>Email
+          <input id="aEmail" type="email" autocomplete="email" required />
+        </label>
+        <label>Password
+          <input id="aPassword" type="password" autocomplete="current-password" required minlength="8" maxlength="72" />
+        </label>
+        <label class="check hidden" id="sampleField">
+          <input id="aSample" type="checkbox" checked /> <span>Start with sample data</span>
+        </label>
+        <p class="auth-error hidden" id="authError" role="alert"></p>
+        <button type="submit" class="primary full" id="authSubmit">Sign in</button>
+      </form>
+      <p class="auth-switch muted"><span id="authSwitchText">New here?</span> <button class="link" id="authSwitch" type="button">Create an account</button></p>
+    </div>
+  </div>
+
   <div class="tooltip" id="tooltip" role="tooltip"></div>
   <div class="toast" id="toast"></div>
 
+  <script src="seed.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

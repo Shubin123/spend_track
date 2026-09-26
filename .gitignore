@@ -1,0 +1,8 @@
+node_modules/
+# Secrets never belong in the repo. scripts/setup.sh writes them to ~/.config/spend_track/.env
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.DS_Store
