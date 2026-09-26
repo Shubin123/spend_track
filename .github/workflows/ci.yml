@@ -24,14 +24,63 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       - name: Syntax check
-        run: for f in app.js seed.js server/*.js scripts/*.js test/*.js; do node --check "$f"; done
-      - name: Setup script lint
-        run: bash -n scripts/setup.sh
+        run: for f in app.js seed.js api-config.js playwright.config.js server/*.js scripts/*.js test/*.js e2e/*.js; do node --check "$f"; done
+      - name: Shell script lint
+        run: for f in scripts/*.sh; do bash -n "$f"; done
       - name: No env files committed
         run: |
           if git ls-files | grep -E '(^|/)\.env($|\.)' | grep -v '\.env\.example$'; then
             echo "::error::.env file is tracked"; exit 1; fi
+
+  # Proves the setup reproduces from scratch: clean runner + empty MySQL ->
+  # non-interactive setup -> integration tests, smoke test, browser e2e.
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci-root-password
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-root-password"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      SPEND_TRACK_ENV_FILE: ${{ runner.temp }}/spend_track/.env
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Setup (non-interactive)
+        env:
+          DB_HOST: 127.0.0.1
+          DB_USER: root
+          DB_PASSWORD: ci-root-password
+          DB_SSL: "off"
+          ST_EMAIL: demo@example.test
+          ST_PASSWORD: ci-demo-password
+        run: bash scripts/setup.sh --yes
+      - run: npm test
+      - name: Start server
+        run: |
+          node server/index.js > server.log 2>&1 &
+          for i in $(seq 60); do curl -fs -o /dev/null http://localhost:3000/ && exit 0; sleep 0.5; done
+          cat server.log; exit 1
+      - run: npm run smoke
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+      - name: Server log
+        if: always()
+        run: cat server.log || true
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

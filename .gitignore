@@ -6,3 +6,5 @@ node_modules/
 *.pem
 *.key
 .DS_Store
+playwright-report/
+test-results/

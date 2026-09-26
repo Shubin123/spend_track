@@ -13,12 +13,19 @@
     "migrate": "node scripts/migrate.js",
     "setup": "bash scripts/setup.sh",
     "test": "node --test test/",
-    "tunnel": "bash scripts/tunnel.sh"
+    "tunnel": "bash scripts/tunnel.sh",
+    "smoke": "node scripts/smoke.js",
+    "e2e": "playwright test",
+    "doctor": "node scripts/doctor.js",
+    "test:all": "npm test && npm run smoke && npm run e2e"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.0",
     "mysql2": "^3.24.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
   }
 }

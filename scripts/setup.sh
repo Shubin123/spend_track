@@ -3,8 +3,14 @@
 # downloads the AWS RDS CA bundle, runs migrations, swaps the master login for
 # least-privilege DB users, and optionally creates an account.
 #
-#   npm run setup            # interactive
-#   SPEND_TRACK_ENV_FILE=/path/.env npm run setup   # custom location
+#   npm run setup                                    # interactive
+#   npm run setup -- --yes                           # non-interactive (also when CI is set)
+#   SPEND_TRACK_ENV_FILE=/path/.env npm run setup    # custom config location
+#
+# Non-interactive mode reads everything from the environment:
+#   DB_HOST DB_PORT DB_USER DB_PASSWORD DB_NAME DB_SSL PORT   (DB_USER/DB_PASSWORD = admin login)
+#   ST_SKIP_DB_USERS=1           keep using the admin login (not recommended)
+#   ST_EMAIL ST_PASSWORD ST_NAME ST_SAMPLE   create an app account when ST_EMAIL is set
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -12,13 +18,20 @@ CONFIG_DIR="${SPEND_TRACK_CONFIG_DIR:-$HOME/.config/spend_track}"
 ENV_FILE="${SPEND_TRACK_ENV_FILE:-$CONFIG_DIR/.env}"
 CA_URL="https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem"
 CA_FILE="$(dirname "$ENV_FILE")/rds-global-bundle.pem"
+YES=n; [[ "${1:-}" == "--yes" || -n "${CI:-}" ]] && YES=y
 
 bold() { printf '\033[1m%s\033[0m\n' "$*"; }
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$*"; }
 die()  { printf '  \033[31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
-ask()  { # ask VAR "Prompt" default
-  local __v; read -r -p "  $2${3:+ [$3]}: " __v || true
+ask()  { # ask VAR "Prompt" default   (non-interactive: takes the default)
+  local __v=""
+  [[ $YES == y ]] || { read -r -p "  $2${3:+ [$3]}: " __v || true; }
   printf -v "$1" '%s' "${__v:-${3:-}}"
+}
+confirm() { # confirm "Question" Y|N   (non-interactive: takes the default)
+  local __a=""
+  [[ $YES == y ]] || { read -r -p "  $1 [$([[ $2 == Y ]] && echo Y/n || echo y/N)]: " __a || true; }
+  [[ "${__a:-$2}" =~ ^[Yy] ]]
 }
 
 bold "1. Checking Node.js"
@@ -28,20 +41,15 @@ ok "node $(node -v)"
 
 bold "2. Database credentials"
 case "$ENV_FILE" in "$PWD"/*) die "Refusing to store secrets inside the project ($ENV_FILE).";; esac
-reuse=n
-if [[ -f "$ENV_FILE" ]]; then
-  read -r -p "  $ENV_FILE exists. Keep it? [Y/n]: " keep || true
-  [[ "${keep:-Y}" =~ ^[Nn] ]] || reuse=y
-fi
-if [[ $reuse == y ]]; then
+if [[ -f "$ENV_FILE" ]] && { [[ $YES == y && -z "${DB_PASSWORD:-}" ]] || { [[ $YES == n ]] && confirm "$ENV_FILE exists. Keep it?" Y; }; }; then
   ok "using existing $ENV_FILE"
 else
   ask DB_HOST "MySQL host" "${DB_HOST:-}"
-  [[ -n "$DB_HOST" ]] || die "Host is required."
+  [[ -n "$DB_HOST" ]] || die "Host is required (set DB_HOST)."
   ask DB_PORT "Port" "${DB_PORT:-3306}"
-  ask DB_USER "User (RDS master; replaced by restricted users in step 6)" "${DB_USER:-admin}"
-  read -r -s -p "  Password: " DB_PASSWORD || true; echo
-  [[ -n "$DB_PASSWORD" ]] || die "Password is required."
+  ask DB_USER "Admin user (replaced by restricted users in step 6)" "${DB_USER:-admin}"
+  if [[ $YES == n ]]; then read -r -s -p "  Password: " DB_PASSWORD || true; echo; fi
+  [[ -n "${DB_PASSWORD:-}" ]] || die "Password is required (set DB_PASSWORD)."
   [[ "$DB_PASSWORD" != *"'"* ]] || die "Passwords containing a single quote aren't supported in .env; set DB_PASSWORD in the environment instead."
   ask DB_NAME "Database name" "${DB_NAME:-spend_track}"
   ask DB_SSL  "TLS to database (required/off)" "${DB_SSL:-required}"
@@ -66,42 +74,49 @@ EOF
   chmod 600 "$ENV_FILE"
   ok "wrote $ENV_FILE (mode 600)"
 fi
+export SPEND_TRACK_ENV_FILE="$ENV_FILE"
+# Values from the file (env vars given to this script were only needed to write it).
+unset DB_HOST DB_PORT DB_USER DB_PASSWORD DB_NAME DB_SSL DB_SSL_CA DB_MIGRATE_USER DB_MIGRATE_PASSWORD
 
 bold "3. TLS certificate for AWS RDS"
-if [[ -s "$CA_FILE" ]]; then ok "found $CA_FILE"
+if grep -qiE "^DB_SSL='?off" "$ENV_FILE"; then ok "skipped (DB_SSL=off)"
+elif [[ -s "$CA_FILE" ]]; then ok "found $CA_FILE"
 else
   curl -fsSL "$CA_URL" -o "$CA_FILE" || die "Could not download $CA_URL"
   ok "downloaded RDS CA bundle to $CA_FILE"
 fi
 
 bold "4. Installing dependencies"
-npm install --no-audit --no-fund --loglevel=error || die "npm install failed. If npm mentions root-owned files, run: sudo chown -R \$(id -u):\$(id -g) ~/.npm"
+if [[ -f package-lock.json ]]; then npm ci --no-audit --no-fund --loglevel=error
+else npm install --no-audit --no-fund --loglevel=error; fi || die "npm install failed. If npm mentions root-owned files, run: sudo chown -R \$(id -u):\$(id -g) ~/.npm"
 ok "dependencies installed"
 
 bold "5. Connecting and migrating"
-export SPEND_TRACK_ENV_FILE="$ENV_FILE"
 node scripts/migrate.js || die "Migration failed. Check host, password, and that your IP is allowed by the RDS security group."
 ok "database ready"
 
 bold "6. Least-privilege database users"
 if grep -q "^DB_MIGRATE_USER=" "$ENV_FILE"; then
   ok "restricted users already configured (rotate with: DB_ADMIN_USER=… DB_ADMIN_PASSWORD=… node scripts/create-db-users.js)"
-else
-  read -r -p "  Create spend_track_app / spend_track_migrator and drop the master password from $ENV_FILE? [Y/n]: " lp || true
-  if [[ "${lp:-Y}" =~ ^[Yy] ]]; then
-    node scripts/create-db-users.js || die "Could not create database users."
-  fi
+elif [[ -n "${ST_SKIP_DB_USERS:-}" ]]; then
+  ok "skipped (ST_SKIP_DB_USERS set)"
+elif confirm "Create spend_track_app / spend_track_migrator and drop the admin password from $ENV_FILE?" Y; then
+  node scripts/create-db-users.js || die "Could not create database users."
 fi
 
 bold "7. Account (optional)"
-read -r -p "  Create a login now? [y/N]: " mk || true
-if [[ "${mk:-N}" =~ ^[Yy] ]]; then
+if [[ $YES == y ]]; then
+  if [[ -n "${ST_EMAIL:-}" ]]; then node scripts/create-user.js; else ok "skipped (set ST_EMAIL and ST_PASSWORD to create one)"; fi
+elif confirm "Create a login now?" N; then
   ask ST_NAME  "Name" "Demo User"
   ask ST_EMAIL "Email" "demo@spendtrack.local"
   read -r -s -p "  Password (8+ chars): " ST_PASSWORD || true; echo
-  read -r -p "  Load sample transactions? [Y/n]: " smp || true
-  ST_NAME="$ST_NAME" ST_EMAIL="$ST_EMAIL" ST_PASSWORD="$ST_PASSWORD" ST_SAMPLE="${smp:-Y}" node scripts/create-user.js
+  confirm "Load sample transactions?" Y && ST_SAMPLE=y || ST_SAMPLE=n
+  ST_NAME="$ST_NAME" ST_EMAIL="$ST_EMAIL" ST_PASSWORD="$ST_PASSWORD" ST_SAMPLE="$ST_SAMPLE" node scripts/create-user.js
 fi
+
+bold "8. Health check"
+node scripts/doctor.js || die "Health check failed (see above)."
 
 echo
 bold "Done. Start the app with:  npm start"

@@ -6,6 +6,8 @@
 //   spend_track_app       SELECT/INSERT/UPDATE/DELETE on DB_NAME.*  (DB_USER, used by the server)
 //   spend_track_migrator  all privileges on DB_NAME.* only          (DB_MIGRATE_USER, used by migrate.js)
 //
+// Override the names with ST_APP_USER / ST_MIGRATE_USER (e.g. several databases on one server).
+//
 // Connects with DB_ADMIN_USER/DB_ADMIN_PASSWORD if set, otherwise with the
 // current DB_USER/DB_PASSWORD. Passwords are random and never printed.
 // Re-running rotates both passwords.
@@ -49,13 +51,15 @@ async function main() {
     throw new Error('Already using the restricted accounts. To rotate, run with DB_ADMIN_USER and DB_ADMIN_PASSWORD set to the RDS master credentials.');
   }
 
+  // TLS-only logins, unless the DB itself runs without TLS (local/CI MySQL with DB_SSL=off).
+  const requireSsl = db.ssl === 'off' ? 'REQUIRE NONE' : 'REQUIRE SSL';
   const appPw = newPassword();
   const migPw = newPassword();
   const conn = await mysql.createConnection(connectionOptions({ withDatabase: false, ...admin }));
   try {
     for (const [user, pw] of [[APP_USER, appPw], [MIGRATE_USER, migPw]]) {
-      await conn.query('CREATE USER IF NOT EXISTS ?@? IDENTIFIED BY ? REQUIRE SSL', [user, HOST, pw]);
-      await conn.query('ALTER USER ?@? IDENTIFIED BY ? REQUIRE SSL', [user, HOST, pw]);
+      await conn.query(`CREATE USER IF NOT EXISTS ?@? IDENTIFIED BY ? ${requireSsl}`, [user, HOST, pw]);
+      await conn.query(`ALTER USER ?@? IDENTIFIED BY ? ${requireSsl}`, [user, HOST, pw]);
     }
     await conn.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON \`${db.database}\`.* TO ?@?`, [APP_USER, HOST]);
     await conn.query(`GRANT ALL PRIVILEGES ON \`${db.database}\`.* TO ?@?`, [MIGRATE_USER, HOST]);
