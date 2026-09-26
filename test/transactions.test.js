@@ -181,18 +181,19 @@ describe('isolation between users', { concurrency: true }, () => {
 });
 
 describe('reset', { concurrency: true }, () => {
-  it("replaces only this user's data with sample data and restores default budgets", async () => {
+  it("clears only this user's transactions and preserves budget limits", async () => {
     const a = await signedIn(ctx);
     const b = await signedIn(ctx);
-    const mine = await f.createTx(a.user.id, { merchant: 'Mine' });
+    await f.createTx(a.user.id, { merchant: 'Mine' });
+    await f.createTx(a.user.id, { type: 'income', category: 'income', amount: 1000 });
+    await f.createTx(a.user.id, { date: '2099-01-01', merchant: 'Future' });
     const theirs = await f.createTx(b.user.id, { merchant: 'Theirs' });
     await a.c.put('/api/budgets/dining', { amount: 1 });
 
     assert.equal((await a.c.post('/api/reset')).status, 200);
     const data = (await a.c.get('/api/data')).body;
-    assert.ok(data.transactions.length > 50);
-    assert.ok(!data.transactions.some(t => t.id === mine.id));
-    assert.deepEqual(data.budgets, DEFAULT_BUDGETS);
+    assert.deepEqual(data.transactions, []);
+    assert.deepEqual(data.budgets, { ...DEFAULT_BUDGETS, dining: 1 });
     assert.ok(await dbTx(theirs.id), "other users' data is untouched");
   });
 

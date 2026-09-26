@@ -111,15 +111,13 @@ router.put('/budgets/:category', async (req, res) => {
   res.json({ category: cat, amount });
 });
 
-// Replace this user's data with fresh sample data (the "Reset demo" button).
-// READ COMMITTED avoids the gap locks that make this bulk delete + insert deadlock with
+// Clear this user's transactions while preserving their configured budget limits.
+// READ COMMITTED avoids the gap locks that make this bulk delete deadlock with
 // other users' writes; locking the user row serialises two resets of the same account.
 router.post('/reset', async (req, res) => {
   await withTransaction(async conn => {
     await conn.query('SELECT id FROM users WHERE id = ? FOR UPDATE', [req.user.id]);
     await conn.query('DELETE FROM transactions WHERE user_id = ?', [req.user.id]);
-    await insertDefaultBudgets(conn, req.user.id);
-    await insertSampleData(conn, req.user.id);
   }, { isolation: 'READ COMMITTED' });
   res.json({ ok: true });
 });

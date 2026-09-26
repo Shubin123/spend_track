@@ -1,6 +1,7 @@
 'use strict';
 // Dashboard numbers, budgets, reset, and preferences.
 const { test, expect } = require('./support/fixtures');
+const { assertCleared } = require('./support/reset');
 const { DEFAULT_BUDGETS } = require('../seed');
 
 const usd = n => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
@@ -46,23 +47,27 @@ test('budget edits persist and drive the over-budget status', async ({ signedIn:
   await expect(app.budgetCard('dining')).toContainText('of $50');
 });
 
-test('reset asks first, and only replaces data when confirmed', async ({ signedIn: app, page, account, db }) => {
+test('reset asks first, and clears data only when confirmed', async ({ signedIn: app, page, account, db }) => {
   await db.createTx(account.id, { merchant: 'Keep Me' });
+  await db.createTx(account.id, { type: 'income', category: 'income', amount: 1000 });
   await app.reload();
 
   page.once('dialog', d => d.dismiss());
   await app.openMenu();
-  await page.getByRole('menuitem', { name: 'Reset sample data' }).click();
+  await page.getByRole('menuitem', { name: 'Reset data' }).click();
   await app.nav('transactions');
   await expect(app.row('Keep Me')).toBeVisible();
 
-  page.once('dialog', d => { expect(d.message()).toContain('cannot be undone'); d.accept(); });
+  page.once('dialog', d => { expect(d.message()).toBe('Reset all financial data? This cannot be undone.'); d.accept(); });
   await app.openMenu();
-  await page.getByRole('menuitem', { name: 'Reset sample data' }).click();
-  await expect(app.toast).toHaveText('Sample data restored');
+  await page.getByRole('menuitem', { name: 'Reset data' }).click();
+  await expect(app.toast).toHaveText('Financial data reset');
   await expect(app.row('Keep Me')).toHaveCount(0);
   const { n } = await db.row('SELECT COUNT(*) AS n FROM transactions WHERE user_id = ?', [account.id]);
-  expect(n).toBeGreaterThan(50);
+  expect(n).toBe(0);
+  await assertCleared(app, page);
+  await app.reload();
+  await assertCleared(app, page);
 });
 
 test('theme choice persists across reloads', async ({ signedIn: app, page }) => {

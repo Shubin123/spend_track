@@ -194,7 +194,7 @@
         await api('POST', 'reset', {});
         await loadRemote();
       } else {
-        Object.assign(state, localSeed());
+        state.txs = [];
         saveLocal();
       }
     },
@@ -752,15 +752,12 @@
 
   $('#resetData').onclick = async () => {
     setMenu(false);
-    const msg = mode === 'api'
-      ? 'Replace all entries in your account with sample data? This cannot be undone.'
-      : 'Reset to sample data? Your changes will be lost.';
-    if (!confirm(msg)) return;
+    if (!confirm('Reset all financial data? This cannot be undone.')) return;
     try {
       await store.reset();
       state.anchor = TODAY;
       render();
-      toast('Sample data restored');
+      toast('Financial data reset');
     } catch (err) {
       if (err.status !== 401) toast(err.message);
     }
